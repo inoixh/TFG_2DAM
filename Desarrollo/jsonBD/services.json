@@ -1,0 +1,92 @@
+[
+  {
+    "id": "srv_tavern_rum",
+    "name": "Ron Marinero",
+    "type": "buff",
+    "description": "Una bebida fuerte que te hace valiente. Duplica la posibilidad de encontrar peces raros, pero te marea mucho.",
+    "effect_target": "rare_spawn_multiplier",
+    "effect_value": 2.0,
+    "price": 150
+  },
+  {
+    "id": "srv_tavern_meal",
+    "name": "Fish & Chips",
+    "type": "buff",
+    "description": "Una comida abundante que te llena de energía. Otorga un 50% más de XP en todas las actividades durante 1 hora.",
+    "effect_target": "xp_gain_multiplier",
+    "effect_value": 1.5,
+    "price": 100
+  },
+  {
+    "id": "srv_tavern_tea",
+    "name": "Té de Miauhiwana",
+    "type": "buff",
+    "description": "Una infusión relajante. Te hace oler increíblemente bien para otros gatos. Aumenta la afinidad obtenida de los regalos en un 50%.",
+    "effect_target": "affinity_gain_multiplier",
+    "effect_value": 1.5,
+    "price": 80
+  },
+  {
+    "id": "item_cure_coffee",
+    "name": "Café",
+    "type": "buff",
+    "description": "Extremadamente oscuro y amargo. Cura al instante cualquier mareo o 'efecto secundario de la taberna'.",
+    "effect_target": "tavern_lvl",
+    "effect_value": -10.0,
+    "price": 40
+  },
+  {
+    "id": "srv_church_blessing",
+    "name": "Bendición de Deus",
+    "type": "streak",
+    "description": "El mercado sonríe a los fieles. Aumenta el precio de venta de todos los peces en un 10% hoy.",
+    "effect_target": "sell_price_multiplier",
+    "effect_value": 1.1,
+    "price": 0
+  },
+  {
+    "id": "srv_church_holy_light",
+    "name": "Luz Sagrada",
+    "type": "streak",
+    "description": "Una luz calmante guía tus manos. Disminuye la velocidad y la dificultad del minijuego de pesca.",
+    "effect_target": "minigame_difficulty",
+    "effect_value": -0.2,
+    "price": 0
+  },
+  {
+    "id": "srv_church_miracle",
+    "name": "Captura Milagrosa",
+    "type": "streak",
+    "description": "¡Un verdadero milagro! Otorga un 10% de probabilidad de pescar dos peces idénticos al mismo tiempo.",
+    "effect_target": "double_catch_chance",
+    "effect_value": 0.1,
+    "price": 0
+  },
+  {
+    "id": "srv_helper_fisher",
+    "name": "Ayudante",
+    "type": "helper",
+    "description": "Contrata a un gato pequeño para que pesque por ti mientras estás desconectado. Genera 1 pez Común o Raro al azar cada hora.",
+    "effect_target": "auto_farm_fish_per_hour",
+    "effect_value": 1.0,
+    "price": 500
+  },
+  {
+    "id": "srv_helper_scavenger",
+    "name": "Basurero",
+    "type": "helper",
+    "description": "Contrata a un gato sigiloso para que se sumerja en el estanque y recoja chatarra y objetos perdidos mientras descansas. Ideal para misiones de limpieza.",
+    "effect_target": "auto_farm_junk_per_hour",
+    "effect_value": 2.0,
+    "price": 300
+  },
+  {
+    "id": "srv_helper_promoter",
+    "name": "Ofertón",
+    "type": "helper",
+    "description": "Un gato ruidoso que grita a los cuatro vientos lo genial que eres en el mercado. Otorga un 15% de descuento en todos los artículos de la tienda hoy.",
+    "effect_target": "shop_discount_multiplier",
+    "effect_value": 0.85,
+    "price": 800
+  }
+]

@@ -1,0 +1,192 @@
+[
+  {
+    "id": "item_rod_old",
+    "name": "Caña vieja",
+    "type": "rod",
+    "rarity": "común",
+    "description": "Un simple palo de madera con una cuerda. Mejor que usar tus propias manos.",
+    "effect_target": "catch_difficulty",
+    "effect_value": 0.0,
+    "price": 50
+  },
+  {
+    "id": "item_rod_good",
+    "name": "Caña buena",
+    "type": "rod",
+    "rarity": "raro",
+    "description": "Una caña de fibra de vidrio decente. Hace que recoger peces sea un poco más fácil.",
+    "effect_target": "catch_difficulty",
+    "effect_value": 15.0,
+    "price": 2000
+  },
+  {
+    "id": "item_rod_super",
+    "name": "Caña Super",
+    "type": "rod",
+    "rarity": "épico",
+    "description": "Una caña de fibra de carbono de alta tecnología. Los peces prácticamente se atrapan solos.",
+    "effect_target": "catch_difficulty",
+    "effect_value": 35.0,
+    "price": 6000
+  },
+  {
+    "id": "item_rod_legendary",
+    "name": "Caña Gatete Legendaria",
+    "type": "rod",
+    "rarity": "legendario",
+    "description": "Forjada con oro puro y pelo de gato. La herramienta de pesca definitiva.",
+    "effect_target": "catch_difficulty",
+    "effect_value": 60.0,
+    "price": 100000
+  },
+  {
+    "id": "item_bait_worm",
+    "name": "Cebo de gusano",
+    "type": "bait",
+    "rarity": "común",
+    "description": "Un jugoso gusano básico. Aumenta ligeramente la posibilidad de encontrar peces Raros.",
+    "effect_target": "spawn_rate_rare",
+    "effect_value": 10.0,
+    "price": 20
+  },
+  {
+    "id": "item_bait_glow",
+    "name": "Cebo de gusano brillante",
+    "type": "bait",
+    "rarity": "especial",
+    "description": "Un gusano de aspecto radiactivo. Atrae enormemente a los peces de rareza Especial.",
+    "effect_target": "spawn_rate_special",
+    "effect_value": 25.0,
+    "price": 60
+  },
+  {
+    "id": "item_bait_magic",
+    "name": "Cebo Mágico",
+    "type": "bait",
+    "rarity": "épico",
+    "description": "Una mezcla brillante de comida para peces. Los peces Épicos no pueden resistirse a este olor.",
+    "effect_target": "spawn_rate_epic",
+    "effect_value": 40.0,
+    "price": 150
+  },
+  {
+    "id": "item_bait_star",
+    "name": "Cebo de fragmento de estrella",
+    "type": "bait",
+    "rarity": "legendario",
+    "description": "Un trozo de una estrella fugaz. La leyenda dice que invoca a las criaturas Legendarias del mar.",
+    "effect_target": "spawn_rate_legendary",
+    "effect_value": 50.0,
+    "price": 500
+  },
+  {
+    "id": "item_junk_boot",
+    "name": "Vieja bota",
+    "type": "trash",
+    "rarity": "común",
+    "description": "Una bota apestosa y mojada. ¿Quién sigue tirando estas cosas al mar?",
+    "effect_target": "none",
+    "effect_value": 0.0,
+    "price": 1
+  },
+  {
+    "id": "item_junk_weed",
+    "name": "Algas enredadas",
+    "type": "trash",
+    "rarity": "común",
+    "description": "Solo un manojo de algas inútiles y viscosas.",
+    "effect_target": "none",
+    "effect_value": 0.0,
+    "price": 1
+  },
+  {
+    "id": "item_junk_can",
+    "name": "Lata vacía",
+    "type": "trash",
+    "rarity": "común",
+    "description": "Una lata de atún vacía. Los gatos cercanos se ven decepcionados.",
+    "effect_target": "none",
+    "effect_value": 0.0,
+    "price": 2
+  },
+  {
+    "id": "item_gift_yarn",
+    "name": "Bola de lana",
+    "type": "gift",
+    "rarity": "común",
+    "description": "Un ovillo de suave lana roja. Un buen regalo para cualquier amigo felino.",
+    "effect_target": "affinity",
+    "effect_value": 5.0,
+    "price": 30
+  },
+  {
+    "id": "item_gift_catnip",
+    "name": "Bolsa de Miauhiwana",
+    "type": "gift",
+    "rarity": "especial",
+    "description": "Hierba gatera de primera calidad. Garantizado para hacer a un gato muy feliz.",
+    "effect_target": "affinity",
+    "effect_value": 15.0,
+    "price": 100
+  },
+  {
+    "id": "item_gift_plush",
+    "name": "Ratoncito de peluche",
+    "type": "gift",
+    "rarity": "épico",
+    "description": "Un ratón de juguete muy realista. El regalo definitivo para ganarse el corazón de un gato.",
+    "effect_target": "affinity",
+    "effect_value": 35.0,
+    "price": 300
+  },
+  {
+    "id": "item_ticket_box",
+    "name": "Caja misteriosa",
+    "type": "gacha",
+    "rarity": "legendario",
+    "description": "Una extraña caja de cartón. Puedes escuchar ronroneos en su interior. ¡Ábrela para encontrar un nuevo amigo!",
+    "effect_target": "summon_cat",
+    "effect_value": 1.0,
+    "price": 1000
+  },
+  {
+    "id": "srv_market_bag_1",
+    "name": "Mejora Inventario I",
+    "type": "upgrade",
+    "rarity": "especial",
+    "description": "Bao te cose unos bolsillos adicionales en tu mochila. Aumenta tu inventario +5 espacios.",
+    "effect_target": "max_inventory_bonus",
+    "effect_value": 5.0,
+    "price": 1500
+  },
+  {
+    "id": "srv_market_bag_2",
+    "name": "Mejora Inventario II",
+    "type": "upgrade",
+    "rarity": "épico",
+    "description": "Bao te cose unos bolsillos adicionales en tu mochila. Aumenta tu inventario máximo en +5 espacios.",
+    "effect_target": "max_inventory_bonus",
+    "effect_value": 5.0,
+    "price": 3000
+  },
+  {
+    "id": "srv_market_bucket_1",
+    "name": "Cubo del muelle",
+    "type": "upgrade",
+    "rarity": "especial",
+    "description": "Bao coloca un robusto cubo de madera junto al muelle. Añade 20 ranuras de almacenamiento externo para tus peces.",
+    "effect_target": "external_storage_bonus",
+    "effect_value": 20.0,
+    "price": 1500
+  },
+  {
+    "id": "srv_market_bucket_2",
+    "name": "Nevera del muelle",
+    "type": "upgrade",
+    "rarity": "legendario",
+    "description": "Mejora tu cubo de madera por una hielera de alta calidad. Añade otras 30 ranuras de almacenamiento externo para mantener los peces frescos.",
+    "effect_target": "external_storage_bonus",
+    "effect_value": 30.0,
+    "price": 4500
+  }
+]

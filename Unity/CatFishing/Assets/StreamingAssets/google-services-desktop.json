@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "714553576723",
+    "project_id": "catfishing-a665a",
+    "storage_bucket": "catfishing-a665a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:714553576723:android:eed88f444ce4c9d578dee6",
+        "android_client_info": {
+          "package_name": "com.AinhoaTFG.CatFishing"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDleNRGctXg_0RnqPw0SpFlyIDZzfBAY1Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

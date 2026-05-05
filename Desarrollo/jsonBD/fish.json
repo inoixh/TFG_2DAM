@@ -1,0 +1,401 @@
+[
+  {
+    "id": "fish_guppy_smile",
+    "name": "Guppy Sonriente",
+    "rarity": "común",
+    "description": "Un pez muy básico que parece estar sonriendo todo el tiempo. Vibras muy positivas.",
+    "price": 15
+  },
+  {
+    "id": "fish_lazy_catfish",
+    "name": "Pez Perezosillo",
+    "rarity": "común",
+    "description": "No nada; simplemente flota por ahí roncando ruidosamente.",
+    "price": 12
+  },
+  {
+    "id": "fish_scarfed_minnow",
+    "name": "Alguilla Arropada",
+    "rarity": "común",
+    "description": "Un pececillo envuelto en algas que se parece sorprendentemente a una bufanda roja.",
+    "price": 18
+  },
+  {
+    "id": "fish_slime",
+    "name": "Pez Slime",
+    "rarity": "común",
+    "description": "Se está derritiendo constantemente. Difícil de atrapar porque se escurre entre los dedos.",
+    "price": 14
+  },
+  {
+    "id": "fish_mochi_loach",
+    "name": "Pez Arroz",
+    "rarity": "común",
+    "description": "Redondo, suave y ligeramente dulce. El pez más regordete del estanque.",
+    "price": 20
+  },
+  {
+    "id": "fish_lasagna_flounder",
+    "name": "Lenguado Lasaña",
+    "rarity": "común",
+    "description": "Plano, naranja y huele sospechosamente a pasta horneada con queso. Odia los lunes.",
+    "price": 25
+  },
+  {
+    "id": "fish_bone",
+    "name": "Pez Hueso",
+    "rarity": "común",
+    "description": "Literalmente solo un esqueleto de pez nadando por ahí. Espeluznante pero inofensivo.",
+    "price": 10
+  },
+  {
+    "id": "fish_ink_carp",
+    "name": "Carpa de Tinta",
+    "rarity": "común",
+    "description": "Deja un rastro de tinta negra por donde pasa. Parece que saltó de un cómic.",
+    "price": 16
+  },
+  {
+    "id": "fish_boxed_sardine",
+    "name": "Sardina en 'caja'",
+    "rarity": "común",
+    "description": "Una pequeña sardina que de alguna manera se quedó atrapada dentro de una caja de cartón en miniatura.",
+    "price": 15
+  },
+  {
+    "id": "fish_camo_bass",
+    "name": "Lubina Camuflada",
+    "rarity": "común",
+    "description": "Apenas puedes verla en el agua. ¡Nada rapidísimo!",
+    "price": 22
+  },
+  {
+    "id": "fish_banana_peel_ray",
+    "name": "Raya Encascarada",
+    "rarity": "común",
+    "description": "Una raya amarilla que hace que otros peces resbalen y choquen bajo el agua.",
+    "price": 24
+  },
+  {
+    "id": "fish_glitch",
+    "name": "Pez Glitch",
+    "rarity": "raro",
+    "description": "Le faltan texturas. Vibra agresivamente cuando lo sostienes.",
+    "price": 50
+  },
+  {
+    "id": "fish_butterfly_trout",
+    "name": "Trucha Mariposa",
+    "rarity": "raro",
+    "description": "Una delicada trucha con alas coloridas en lugar de aletas. Ama las flores.",
+    "price": 45
+  },
+  {
+    "id": "fish_popping_puffer",
+    "name": "Pez Globo Pop",
+    "rarity": "raro",
+    "description": "Hace un fuerte sonido de 'POP' cada vez que abre la boca. Muy molesto, muy lindo.",
+    "price": 35
+  },
+  {
+    "id": "fish_lunar_eel",
+    "name": "Anguila Lunar",
+    "rarity": "raro",
+    "description": "Una anguila pálida y brillante que solo sale cuando la luna está alta.",
+    "price": 55
+  },
+  {
+    "id": "fish_cursed_koi",
+    "name": "Koi Maldito",
+    "rarity": "raro",
+    "description": "Cambia de color dependiendo de si el agua está caliente o fría.",
+    "price": 60
+  },
+  {
+    "id": "fish_glowing_angler",
+    "name": "Pez Linterna",
+    "rarity": "raro",
+    "description": "Usa una pequeña bombilla brillante en su cabeza para leer en las oscuras profundidades del océano.",
+    "price": 48
+  },
+  {
+    "id": "fish_shadow_snapper",
+    "name": "Pargo Sombra",
+    "rarity": "raro",
+    "description": "Un pez más oscuro que la noche. Siempre parece que está tramando algo malvado.",
+    "price": 52
+  },
+  {
+    "id": "fish_weeping_tetra",
+    "name": "Pez lágrima",
+    "rarity": "raro",
+    "description": "Llora lágrimas de sal constantemente, haciendo que el agua a su alrededor sea extra salada.",
+    "price": 30
+  },
+  {
+    "id": "fish_stitched_sole",
+    "name": "Lenguado Cosido",
+    "rarity": "raro",
+    "description": "Parece un peluche que se cayó al agua. Tiene ojos de botón.",
+    "price": 40
+  },
+  {
+    "id": "fish_armored_sturgeon",
+    "name": "Esturión Blindado",
+    "rarity": "raro",
+    "description": "Cubierto de pesadas placas de metal. Se hunde más de lo que nada.",
+    "price": 58
+  },
+  {
+    "id": "fish_sweet_yellowtail",
+    "name": "Jurel Dulce",
+    "rarity": "raro",
+    "description": "Huele exactamente como un plátano maduro. Los monos a menudo intentan pescarlo.",
+    "price": 38
+  },
+  {
+    "id": "fish_echo_mahi",
+    "name": "Pez Eco",
+    "rarity": "raro",
+    "description": "Si escuchas con atención, puedes oírle hacer eco de extraños sonidos de internet bajo el agua.",
+    "price": 42
+  },
+  {
+    "id": "fish_leaf_trout",
+    "name": "Trucha Hoja",
+    "rarity": "raro",
+    "description": "Sus escamas tienen la textura perfecta de una hoja crujiente de otoño. Sabe a clorofila y a rocío de la mañana.",
+    "price": 45
+  },
+  {
+    "id": "fish_loaf_tuna",
+    "name": "Atún Tostado",
+    "rarity": "raro",
+    "description": "Un pez con forma sorprendentemente rectangular que cruje ligeramente al morderlo. Ideal para untar.",
+    "price": 55
+  },
+  {
+    "id": "fish_cotton_candy",
+    "name": "Pez Algodón de Azúcar",
+    "rarity": "especial",
+    "description": "Es esponjoso, es rosa y sabe a azúcar. ¿Es esto siquiera un pez real?",
+    "price": 90
+  },
+  {
+    "id": "fish_siamese_betta",
+    "name": "Pez Fisno",
+    "rarity": "especial",
+    "description": "Fino y elegante. Solo los gatos sofisticados entienden su sabor",
+    "price": 110
+  },
+  {
+    "id": "fish_spinning_catshark",
+    "name": "Tiburcio Giratorio",
+    "rarity": "especial",
+    "description": "Nunca deja de dar vueltas en círculos. Mirarlo te marea.",
+    "price": 85
+  },
+  {
+    "id": "fish_macaron_crab",
+    "name": "Cangrejo Macaron",
+    "rarity": "especial",
+    "description": "Técnicamente un crustáceo, pero su caparazón se parece exactamente a un delicioso pastelito francés.",
+    "price": 120
+  },
+  {
+    "id": "fish_wacky_mudskipper",
+    "name": "Pez Chiflado",
+    "rarity": "especial",
+    "description": "Salta fuera del agua y grita incontrolablemente. Puro caos.",
+    "price": 95
+  },
+  {
+    "id": "fish_carrot_puffer",
+    "name": "Pez Globo Zanahoria",
+    "rarity": "especial",
+    "description": "Un pez enorme y redondo que se comió una zanahoria entera y ahora la tiene atascada en la nariz como un muñeco de nieve.",
+    "price": 130
+  },
+  {
+    "id": "fish_maraca_grouper",
+    "name": "Mero Maraca",
+    "rarity": "especial",
+    "description": "Agita sus escamas para crear un ritmo latino mientras nada.",
+    "price": 105
+  },
+  {
+    "id": "fish_ghostly_guppy",
+    "name": "Guppy Fantasmal",
+    "rarity": "especial",
+    "description": "Puedes ver sus huesos, pero se menea juguetonamente. No da miedo en absoluto.",
+    "price": 80
+  },
+  {
+    "id": "fish_mini_meg",
+    "name": "Mini Megalodón",
+    "rarity": "especial",
+    "description": "Un tiburón prehistórico aterrador... pero solo mide cinco centímetros.",
+    "price": 150
+  },
+  {
+    "id": "fish_galaxy_betta",
+    "name": "Pez Galaxia",
+    "rarity": "especial",
+    "description": "Sus aletas contienen una nebulosa estelar en miniatura. Hermoso de ver.",
+    "price": 140
+  },
+  {
+    "id": "fish_colossal_squid",
+    "name": "Calamar Colosal",
+    "rarity": "especial",
+    "description": "Un enorme tentáculo de calamar. Nadie ha visto nunca el resto de su cuerpo.",
+    "price": 145
+  },
+  {
+    "id": "fish_botanical_koi",
+    "name": "Koi Botánico",
+    "rarity": "especial",
+    "description": "Un pez cibernético que hace la fotosíntesis. La mejor fuente de abono para plantas holográficas.",
+    "price": 110
+  },
+  {
+    "id": "fish_polite_sardine",
+    "name": "Sardina Educada",
+    "rarity": "especial",
+    "description": "Una sardina muy refinada que parece pedir disculpas al ser pescada. Nunca salpica agua al salir.",
+    "price": 85
+  }, 
+  {
+    "id": "fish_pixel_star",
+    "name": "Estrella Pixelada",
+    "rarity": "épico",
+    "description": "Una estrella de mar mágica hecha de píxeles brillantes. Tararea una melodía retro de 8 bits.",
+    "price": 250
+  },
+  {
+    "id": "fish_neon_salmon",
+    "name": "Salmón Neón",
+    "rarity": "épico",
+    "description": "Lleva gafas de sol invisibles y nada contra la corriente con un estilo extremo.",
+    "price": 300
+  },
+  {
+    "id": "fish_hellfire_salmon",
+    "name": "Salmón Infernal",
+    "rarity": "épico",
+    "description": "Un pez que brilla con las llamas del mismísimo inframundo. Perfecto para señores oscuros de tamaño bolsillo.",
+    "price": 310
+  },
+  {
+    "id": "fish_hypno_toadfish",
+    "name": "Sapo Hipnotizante",
+    "rarity": "épico",
+    "description": "Mirar sus ojos arremolinados te da ganas de regalar todo tu dinero.",
+    "price": 280
+  },
+  {
+    "id": "fish_bubblegum_jelly",
+    "name": "Medusa Chicle",
+    "rarity": "épico",
+    "description": "Una medusa rosa brillante que hace estallar burbujas bajo el agua. No masticar.",
+    "price": 220
+  },
+  {
+    "id": "fish_looping_loach",
+    "name": "Locha en Bucle",
+    "rarity": "épico",
+    "description": "Mueve la cabeza de arriba a abajo en un bucle perfecto e interminable.",
+    "price": 320
+  },
+  {
+    "id": "fish_red_balloon",
+    "name": "Pez Globo Rojo",
+    "rarity": "épico",
+    "description": "Un pez que flota hacia arriba en lugar de nadar hacia abajo. Música de circo espeluznante suena cerca.",
+    "price": 350
+  },
+  {
+    "id": "fish_stormy_swordfish",
+    "name": "Pez Espada Tormenta",
+    "rarity": "épico",
+    "description": "Tiene un rayo literal por nariz. Te da una descarga si lo sostienes mal.",
+    "price": 380
+  },
+  {
+    "id": "fish_azure_shroom",
+    "name": "Champiñón Celeste",
+    "rarity": "épico",
+    "description": "Azul con un sombrero de hongo blanco. Vive en pequeños pueblos submarinos.",
+    "price": 260
+  },
+  {
+    "id": "fish_abducted_tuna",
+    "name": "Atún Abducido",
+    "rarity": "épico",
+    "description": "Este pez sigue flotando hacia arriba hacia una extraña luz verde en el cielo.",
+    "price": 400
+  },
+  {
+    "id": "fish_tsundere_shark",
+    "name": "Tiburón Tsundere",
+    "rarity": "épico",
+    "description": "'¡No es como si quisiera que me atraparas ni nada, idiota!'",
+    "price": 340
+  },
+  {
+    "id": "fish_golden_koi",
+    "name": "Koi Dorado",
+    "rarity": "legendario",
+    "description": "Un pez antiguo y majestuoso que trae fortuna infinita. Está hecho de oro sólido y puro.",
+    "price": 1000
+  },
+  {
+    "id": "fish_rainbow_tart",
+    "name": "Pez Tarta",
+    "rarity": "legendario",
+    "description": "Deja un rastro de arcoíris a su paso y tiene una misteriosa tarta de cerezas pegada a su espalda.",
+    "price": 1500
+  },
+  {
+    "id": "fish_choco_whale",
+    "name": "Ballena Pepitas",
+    "rarity": "legendario",
+    "description": "Una ballena legendaria que se parece peligrosamente a una galleta gigante con chispas de chocolate.",
+    "price": 1200
+  },
+  {
+    "id": "fish_jade_dragonfish",
+    "name": "Pez Dragón de Jade",
+    "rarity": "legendario",
+    "description": "El símbolo supremo de riqueza y prosperidad en el mercado. Sus escamas están talladas en jade antiguo.",
+    "price": 1100
+  },
+  {
+    "id": "fish_angelic_arowana",
+    "name": "Arowana Ángel",
+    "rarity": "legendario",
+    "description": "Tiene seis alas brillantes en lugar de aletas. Atraparlo se siente como una experiencia religiosa.",
+    "price": 1400
+  },
+  {
+    "id": "fish_future_carp",
+    "name": "Carpa Dorayaki",
+    "rarity": "legendario",
+    "description": "Un pez robótico del siglo XXII. Tiene un misterioso relleno de judías que sobresale pos los lados.",
+    "price": 1350
+  },
+  {
+    "id": "fish_phoenix_leviathan",
+    "name": "Leviatán Fénix",
+    "rarity": "legendario",
+    "description": "Una criatura de mito. Nada tanto en magma como en agua, dejando un rastro de brasas eternas.",
+    "price": 1450
+  },
+  {
+    "id": "fish_mecha_whale_shark",
+    "name": "Tiburón Ballena Mecha",
+    "rarity": "legendario",
+    "description": "Una unidad absoluta. Un gigantesco pez cibernético que domina los océanos más profundos.",
+    "price": 1500
+  }
+]
