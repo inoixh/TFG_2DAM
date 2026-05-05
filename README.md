@@ -238,43 +238,6 @@ CatFishing/
 └── README.md              # Este archivo
 
 ```
-
-### Estructura Típica de Assets/Scripts
-
-```
-Assets/Scripts/
-├── Core/                  # Sistemas principales
-│   ├── GameManager.cs
-│   ├── FirebaseManager.cs
-│   └── DataManager.cs
-│
-├── Systems/               # Sistemas de juego
-│   ├── FishingSystem/
-│   ├── CatSystem/
-│   ├── MarketSystem/
-│   └── QuestSystem/
-│
-├── UI/                    # Scripts de interfaz
-│   ├── MenuManager.cs
-│   ├── UIController.cs
-│   └── DialogueSystem.cs
-│
-├── Player/                # Scripts del jugador
-│   ├── PlayerController.cs
-│   ├── PlayerInventory.cs
-│   └── PlayerStats.cs
-│
-├── NPCs/                  # Scripts de personajes
-│   ├── CatBehavior.cs
-│   ├── NPCInteraction.cs
-│   └── Dialogue.cs
-│
-└── Utilities/             # Funciones auxiliares
-    ├── InputManager.cs
-    ├── AudioManager.cs
-    └── SaveManager.cs
-```
-
 ---
 
 ## 🚀 Instalación y Configuración
