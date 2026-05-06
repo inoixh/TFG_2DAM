@@ -1,23 +1,34 @@
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 /// <summary>
 /// Gestiona la reproducción de música de fondo, ambiente marino y efectos de sonido generales.
-/// Implementa el patrón Singleton para persistir a lo largo de las distintas escenas del juego.
+/// Implementa el patrón Singleton para persistir a lo largo de las distintas escenas del juego sin cortes.
 /// </summary>
 public class SoundManager : MonoBehaviour
 {
     public static SoundManager Instance;
 
     [Header("Mezclador de Volumen")]
-    [Range(0f, 1f)] public float volumenMusica = 0.3f;
-    [Range(0f, 1f)] public float volumenMar = 0.3f;
-    [Range(0f, 1f)] public float volumenPasos = 0.5f;
-    [Range(0f, 1f)] public float volumenEfectos = 1.0f;
-    [Range(0f, 1f)] public float volumenCarrete = 0.6f;
+    [Range(0f, 1f)]
+    public float volumenMusica = 0.3f;
+
+    [Range(0f, 1f)]
+    public float volumenMar = 0.3f;
+
+    [Range(0f, 1f)]
+    public float volumenPasos = 0.5f;
+
+    [Range(0f, 1f)]
+    public float volumenEfectos = 1.0f;
+
+    [Range(0f, 1f)]
+    public float volumenCarrete = 0.6f;
 
     [Header("Clips de Audio - Ambiente")]
-    public AudioClip backgroundMusic;
-    public AudioClip sonidoMar; 
+    public AudioClip musicaMenu;
+    public AudioClip musicaJuego;
+    public AudioClip sonidoMar;
 
     [Header("Clips de Audio - Pasos")]
     public AudioClip pasoA;
@@ -25,27 +36,41 @@ public class SoundManager : MonoBehaviour
 
     [Header("Clips de Audio - Pesca")]
     public AudioClip sonidoLanzar;
-    public AudioClip sonidoPicarLoop; 
-    public AudioClip sonidoCaptura;   
-    public AudioClip sonidoPerder;    
+    public AudioClip sonidoPicarLoop;
+    public AudioClip sonidoCaptura;
+    public AudioClip sonidoPerder;
 
-    private AudioSource musicSource;    
-    private AudioSource ambienceSource; 
-    private AudioSource effectsSource;  
-    private AudioSource sfxLoopSource;  
-    private bool pasoAlternador = false; 
+    [Header("Clips de Audio - Interfaz y Economía")]
+    public AudioClip sonidoClickBoton;
+    public AudioClip sonidoComprar;
+    public AudioClip sonidoVender;
+    public AudioClip sonidoSubirNivel;
+
+    [Header("Clips de Audio - Gatos")]
+    public AudioClip sonidoGatoFeliz;
+    public AudioClip sonidoGatoEnfadado;
+
+    [Header("Clips de Audio - Edificios")]
+    public AudioClip sonidoConsumirTaberna;
+    public AudioClip sonidoRezarIglesia;
+
+    private AudioSource musicSource;
+    private AudioSource ambienceSource;
+    private AudioSource effectsSource;
+    private AudioSource sfxLoopSource;
+    private bool pasoAlternador = false;
 
     void Awake()
     {
-        if (Instance == null) 
-        { 
-            Instance = this; 
-            DontDestroyOnLoad(gameObject); 
+        if (Instance == null)
+        {
+            Instance = this;
+            DontDestroyOnLoad(gameObject);
         }
-        else 
-        { 
-            Destroy(gameObject); 
-            return; 
+        else
+        {
+            Destroy(gameObject);
+            return;
         }
 
         musicSource = gameObject.AddComponent<AudioSource>();
@@ -55,105 +80,175 @@ public class SoundManager : MonoBehaviour
 
         musicSource.loop = true;
         ambienceSource.loop = true;
-        sfxLoopSource.loop = true; 
+        sfxLoopSource.loop = true;
     }
 
+    /// <summary>
+    /// Detecta la escena actual al inicializarse para reproducir la música correcta de forma automática.
+    /// Útil si el desarrollador arranca el juego directamente desde la escena de la isla para hacer pruebas.
+    /// </summary>
     void Start()
     {
-        PlayBackgroundMusic();
-        PlayAmbience();
+        if (SceneManager.GetActiveScene().name == "Game")
+        {
+            ReproducirMusicaJuego();
+        }
+        else
+        {
+            ReproducirMusicaMenu();
+        }
     }
 
     void Update()
     {
-        if (musicSource != null) musicSource.volume = volumenMusica;
-        if (ambienceSource != null) ambienceSource.volume = volumenMar;
-        if (sfxLoopSource != null) sfxLoopSource.volume = volumenCarrete;
+        if (musicSource != null)
+            musicSource.volume = volumenMusica;
+        if (ambienceSource != null)
+            ambienceSource.volume = volumenMar;
+        if (sfxLoopSource != null)
+            sfxLoopSource.volume = volumenCarrete;
     }
 
     /// <summary>
-    /// Reproduce la pista de música de fondo asignada de forma ininterrumpida.
+    /// Detiene el sonido ambiental del mar y reproduce la pista relajante de los menús.
     /// </summary>
-    public void PlayBackgroundMusic()
+    public void ReproducirMusicaMenu()
     {
-        if (backgroundMusic != null)
+        if (ambienceSource != null)
+            ambienceSource.Stop();
+
+        if (musicSource != null && musicaMenu != null)
         {
-            musicSource.clip = backgroundMusic;
+            musicSource.clip = musicaMenu;
             musicSource.Play();
         }
     }
 
     /// <summary>
-    /// Reproduce el sonido de ambiente asignado (ej. olas del mar) de forma ininterrumpida.
+    /// Activa el sonido ambiental del mar y reproduce la pista de exploración de la isla.
     /// </summary>
-    public void PlayAmbience()
+    public void ReproducirMusicaJuego()
     {
-        if (sonidoMar != null)
+        if (ambienceSource != null && sonidoMar != null)
         {
             ambienceSource.clip = sonidoMar;
             ambienceSource.Play();
         }
+
+        if (musicSource != null && musicaJuego != null)
+        {
+            musicSource.clip = musicaJuego;
+            musicSource.Play();
+        }
     }
 
-    /// <summary>
-    /// Reproduce de forma alterna los sonidos de pasos del jugador aplicando una leve variación de tono para mayor realismo.
-    /// </summary>
     public void ReproducirPaso()
     {
         AudioClip clipAUsar = pasoAlternador ? pasoA : pasoB;
-        pasoAlternador = !pasoAlternador; 
+        pasoAlternador = !pasoAlternador;
 
         if (clipAUsar != null)
         {
             effectsSource.pitch = Random.Range(0.95f, 1.05f);
             effectsSource.PlayOneShot(clipAUsar, volumenPasos);
-            effectsSource.pitch = 1.0f; 
+            effectsSource.pitch = 1.0f;
         }
     }
 
-    /// <summary>
-    /// Reproduce una sola vez el efecto de sonido correspondiente al lanzamiento de la caña.
-    /// </summary>
-    public void SFX_Lanzar()
+    public void ReproducirSonidoPersonalizado(AudioClip clip)
     {
-        if (sonidoLanzar != null) effectsSource.PlayOneShot(sonidoLanzar, volumenEfectos);
+        if (clip != null)
+            effectsSource.PlayOneShot(clip, volumenEfectos);
     }
 
-    /// <summary>
-    /// Inicia la reproducción en bucle del sonido del carrete durante el forcejeo del minijuego de pesca.
-    /// </summary>
-    public void SFX_EmpezarForcejeo() 
+    // ==========================================
+    // MÉTODOS DE PESCA
+    // ==========================================
+    public void SFX_Lanzar()
+    {
+        if (sonidoLanzar != null)
+            effectsSource.PlayOneShot(sonidoLanzar, volumenEfectos);
+    }
+
+    public void SFX_EmpezarForcejeo()
     {
         if (sonidoPicarLoop != null)
         {
             sfxLoopSource.clip = sonidoPicarLoop;
-            sfxLoopSource.Play(); 
+            sfxLoopSource.Play();
         }
     }
 
-    /// <summary>
-    /// Detiene la reproducción en bucle del sonido del carrete.
-    /// </summary>
-    public void SFX_PararForcejeo() 
+    public void SFX_PararForcejeo()
     {
         sfxLoopSource.Stop();
     }
 
-    /// <summary>
-    /// Detiene el sonido de forcejeo y reproduce el efecto sonoro de captura exitosa.
-    /// </summary>
     public void SFX_Ganar()
     {
         SFX_PararForcejeo();
-        if (sonidoCaptura != null) effectsSource.PlayOneShot(sonidoCaptura, volumenEfectos);
+        if (sonidoCaptura != null)
+            effectsSource.PlayOneShot(sonidoCaptura, volumenEfectos);
     }
 
-    /// <summary>
-    /// Detiene el sonido de forcejeo y reproduce el efecto sonoro de pez escapado.
-    /// </summary>
     public void SFX_Perder()
     {
         SFX_PararForcejeo();
-        if (sonidoPerder != null) effectsSource.PlayOneShot(sonidoPerder, volumenEfectos);
+        if (sonidoPerder != null)
+            effectsSource.PlayOneShot(sonidoPerder, volumenEfectos);
+    }
+
+    // ==========================================
+    // MÉTODOS DE UI Y ECONOMÍA
+    // ==========================================
+    public void ReproducirClick()
+    {
+        if (sonidoClickBoton != null)
+            effectsSource.PlayOneShot(sonidoClickBoton, volumenEfectos);
+    }
+
+    public void ReproducirComprar()
+    {
+        if (sonidoComprar != null)
+            effectsSource.PlayOneShot(sonidoComprar, volumenEfectos);
+    }
+
+    public void ReproducirVender()
+    {
+        if (sonidoVender != null)
+            effectsSource.PlayOneShot(sonidoVender, volumenEfectos);
+    }
+
+    public void ReproducirSubirNivel()
+    {
+        if (sonidoSubirNivel != null)
+            effectsSource.PlayOneShot(sonidoSubirNivel, volumenEfectos);
+    }
+
+    public void ReproducirConsumirTaberna()
+    {
+        if (sonidoConsumirTaberna != null)
+            effectsSource.PlayOneShot(sonidoConsumirTaberna, volumenEfectos);
+    }
+
+    public void ReproducirRezarIglesia()
+    {
+        if (sonidoRezarIglesia != null)
+            effectsSource.PlayOneShot(sonidoRezarIglesia, volumenEfectos);
+    }
+
+    // ==========================================
+    // MÉTODOS DE GATOS
+    // ==========================================
+    public void ReproducirGatoFeliz()
+    {
+        if (sonidoGatoFeliz != null)
+            effectsSource.PlayOneShot(sonidoGatoFeliz, volumenEfectos);
+    }
+
+    public void ReproducirGatoEnfadado()
+    {
+        if (sonidoGatoEnfadado != null)
+            effectsSource.PlayOneShot(sonidoGatoEnfadado, volumenEfectos);
     }
 }

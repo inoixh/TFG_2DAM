@@ -192,7 +192,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GatoNPC
   idGatoDB: cat_nyan
   idPezDeseado: fish_rainbow_tart
-  nivelAfinidad: 1
+  nombreGato: Gato
+  recompensaExperiencia: 25
+  recompensaMonedas: 10
+  tiempoPaciencia: 300
+  maullidoPersonalizado: {fileID: 8300000, guid: 6760d64f9b93ab2478f462baf2c8f2e7, type: 3}
 --- !u!114 &8628587431535246005
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -215,10 +219,10 @@ MonoBehaviour:
   modelo3D: {fileID: 5713947179728421201}
   velocidadFlote: 2
   alturaFlote: 0.2
+  elevacionExtra: 1
   waypoints: []
   animator: {fileID: 0}
   tieneAnimWalk: 0
-  tieneAnimIdle: 0
   tieneAnimTalk: 0
   mirarAlJugador: 1
 --- !u!4 &5713947179728421201 stripped

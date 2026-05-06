@@ -219,7 +219,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GatoNPC
   idGatoDB: cat_maxwell
   idPezDeseado: fish_looping_loach
-  nivelAfinidad: 1
+  nombreGato: Gato
+  recompensaExperiencia: 25
+  recompensaMonedas: 10
+  tiempoPaciencia: 300
+  maullidoPersonalizado: {fileID: 8300000, guid: fef65c3897172f2488fd9d642bb96024, type: 3}
 --- !u!114 &214178202109654947
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -21,6 +21,9 @@ public class GatoNPC : MonoBehaviour
     [Header("Comportamiento")]
     public float tiempoPaciencia = 300f;
 
+    [Header("Audio")]
+    public AudioClip maullidoPersonalizado;
+
     private int xpAfinidadActual = 0;
     private int nivelAfinidad = 1;
     private int xpNecesariaAfinidad = 50;
@@ -91,6 +94,9 @@ public class GatoNPC : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Revisa la paciencia y permite interactuar siempre que otra interfaz no reclame prioridad.
+    /// </summary>
     void Update()
     {
         if (interaccionBloqueada)
@@ -101,6 +107,7 @@ public class GatoNPC : MonoBehaviour
         {
             interaccionBloqueada = true;
             BajarAfinidadPorImpaciencia();
+            return;
         }
 
         bool puedeInteractuar =
@@ -110,8 +117,16 @@ public class GatoNPC : MonoBehaviour
         {
             if (estadoActual == EstadoInteraccion.Inactivo && UIManager.Instance != null)
                 UIManager.Instance.MostrarInteraccion("Pulsa [ESPACIO] para hablar");
+
             if (Keyboard.current.spaceKey.wasPressedThisFrame)
+            {
+                if (estadoActual == EstadoInteraccion.Inactivo && UIManager.Instance != null)
+                {
+                    if (!UIManager.Instance.ConsumirInteraccion())
+                        return;
+                }
                 AvanzarInteraccion();
+            }
         }
     }
 
@@ -158,12 +173,15 @@ public class GatoNPC : MonoBehaviour
     }
 
     /// <summary>
-    /// Suma XP de afinidad multiplicada por bufos, recalcula el nivel y actualiza la UI.
+    /// Suma XP de afinidad, emite sonido feliz, recalcula nivel y actualiza UI.
     /// </summary>
     private void ReaccionFeliz()
     {
         string claveHappy = "happy" + Mathf.Clamp(nivelAfinidad, 1, 10).ToString("D2");
         MostrarDialogo(ObtenerFrase(claveHappy));
+
+        if (SoundManager.Instance != null)
+            SoundManager.Instance.ReproducirGatoFeliz();
 
         if (nivelAfinidad < 10 && GameManager.Instance != null)
         {
@@ -221,14 +239,24 @@ public class GatoNPC : MonoBehaviour
         Invoke("DesaparecerDeLaIsla", 3f);
     }
 
+    /// <summary>
+    /// Reacción de enfado con su respectivo sonido.
+    /// </summary>
     private void ReaccionEnfadado()
     {
         MostrarDialogo(ObtenerFrase("angry"));
+        if (SoundManager.Instance != null)
+            SoundManager.Instance.ReproducirGatoEnfadado();
     }
 
+    /// <summary>
+    /// Reacción de tristeza con su respectivo sonido.
+    /// </summary>
     private void ReaccionTriste()
     {
         MostrarDialogo(ObtenerFrase("sad"));
+        if (SoundManager.Instance != null)
+            SoundManager.Instance.ReproducirGatoEnfadado();
     }
 
     private string ObtenerFrase(string clave)
@@ -242,8 +270,14 @@ public class GatoNPC : MonoBehaviour
             UIManager.Instance.MostrarBocadillo(frase);
     }
 
+    /// <summary>
+    /// Bloquea los controles, reproduce el maullido propio del gato y muestra la UI.
+    /// </summary>
     private void ComenzarInteraccion()
     {
+        if (SoundManager.Instance != null)
+            SoundManager.Instance.ReproducirSonidoPersonalizado(maullidoPersonalizado);
+
         if (UIManager.Instance != null)
         {
             UIManager.Instance.OcultarInteraccion();

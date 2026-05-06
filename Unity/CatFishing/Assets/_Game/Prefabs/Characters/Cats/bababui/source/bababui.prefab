@@ -201,8 +201,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GatoNPC
   idGatoDB: cat_bababui
   idPezDeseado: fish_echo_mahi
-  animatorGato: {fileID: 0}
-  nivelAfinidad: 1
+  nombreGato: Gato
+  recompensaExperiencia: 25
+  recompensaMonedas: 10
+  tiempoPaciencia: 300
+  maullidoPersonalizado: {fileID: 8300000, guid: 6784f774fa5d02f4c8484dcbf6f7bd19, type: 3}
 --- !u!114 &7577813838011562500
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -225,9 +228,9 @@ MonoBehaviour:
   modelo3D: {fileID: 0}
   velocidadFlote: 2
   alturaFlote: 0.2
+  elevacionExtra: 1
   waypoints: []
   animator: {fileID: -4895894781385350519}
   tieneAnimWalk: 0
-  tieneAnimIdle: 0
   tieneAnimTalk: 1
   mirarAlJugador: 1

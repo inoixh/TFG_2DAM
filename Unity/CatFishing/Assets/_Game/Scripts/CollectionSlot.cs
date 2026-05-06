@@ -1,6 +1,6 @@
 using UnityEngine;
-using UnityEngine.UI;
 using UnityEngine.EventSystems;
+using UnityEngine.UI;
 
 /// <summary>
 /// Controla la lógica visual de una casilla en la colección, adaptándose a si contiene un pez o un gato.
@@ -24,7 +24,8 @@ public class CollectionSlot : MonoBehaviour, IPointerClickHandler
         datosGato = gato;
         esGato = true;
         estaDesbloqueado = desbloqueado;
-        if (iconoItem != null) iconoItem.sprite = desbloqueado ? gato.icono : iconoIncognita;
+        if (iconoItem != null)
+            iconoItem.sprite = desbloqueado ? gato.icono : iconoIncognita;
     }
 
     /// <summary>
@@ -35,7 +36,8 @@ public class CollectionSlot : MonoBehaviour, IPointerClickHandler
         datosPez = pez;
         esGato = false;
         estaDesbloqueado = desbloqueado;
-        if (iconoItem != null) iconoItem.sprite = desbloqueado ? pez.icono : iconoIncognita;
+        if (iconoItem != null)
+            iconoItem.sprite = desbloqueado ? pez.icono : iconoIncognita;
     }
 
     /// <summary>
@@ -43,11 +45,12 @@ public class CollectionSlot : MonoBehaviour, IPointerClickHandler
     /// </summary>
     public void OnPointerClick(PointerEventData eventData)
     {
-        if (!estaDesbloqueado) return;
+        if (!estaDesbloqueado)
+            return;
 
-        if (esGato && datosGato != null && CollectionManager.Instance != null) 
+        if (esGato && datosGato != null && CollectionManager.Instance != null)
             CollectionManager.Instance.SeleccionarGato(datosGato);
-        else if (!esGato && datosPez != null && CollectionManager.Instance != null) 
+        else if (!esGato && datosPez != null && CollectionManager.Instance != null)
             CollectionManager.Instance.SeleccionarPez(datosPez);
     }
 }

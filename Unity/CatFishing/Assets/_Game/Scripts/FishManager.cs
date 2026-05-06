@@ -1,7 +1,7 @@
-using UnityEngine;
-using Firebase.Firestore;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Firebase.Firestore;
+using UnityEngine;
 
 /// <summary>
 /// Descarga la base de datos de peces desde Firebase y construye los objetos ItemData dinámicamente en memoria.
@@ -24,14 +24,16 @@ public class FishManager : MonoBehaviour
 
     [HideInInspector]
     public List<ItemData> todosLosPeces = new List<ItemData>();
-    
+
     [HideInInspector]
     public bool pecesCargados = false;
 
     void Awake()
     {
-        if (Instance == null) Instance = this;
-        else Destroy(gameObject);
+        if (Instance == null)
+            Instance = this;
+        else
+            Destroy(gameObject);
     }
 
     void Start()
@@ -45,24 +47,29 @@ public class FishManager : MonoBehaviour
     private async void CargarPecesDesdeFirebase()
     {
         FirebaseFirestore db = FirebaseFirestore.DefaultInstance;
-        CollectionReference pecesRef = db.Collection("fish"); 
+        CollectionReference pecesRef = db.Collection("fish");
 
         try
         {
             QuerySnapshot snapshot = await pecesRef.GetSnapshotAsync();
-            
+
             foreach (DocumentSnapshot doc in snapshot.Documents)
             {
                 Dictionary<string, object> pezData = doc.ToDictionary();
 
                 ItemData nuevoPez = ScriptableObject.CreateInstance<ItemData>();
                 nuevoPez.ID = doc.Id;
-                
-                if (pezData.ContainsKey("name")) nuevoPez.nombreDisplay = pezData["name"].ToString();
-                if (pezData.ContainsKey("description")) nuevoPez.descripcion = pezData["description"].ToString();
-                if (pezData.ContainsKey("price")) nuevoPez.precioVenta = System.Convert.ToInt32(pezData["price"]);
 
-                string rarezaStr = pezData.ContainsKey("rarity") ? pezData["rarity"].ToString().ToLower() : "común";
+                if (pezData.ContainsKey("name"))
+                    nuevoPez.nombreDisplay = pezData["name"].ToString();
+                if (pezData.ContainsKey("description"))
+                    nuevoPez.descripcion = pezData["description"].ToString();
+                if (pezData.ContainsKey("price"))
+                    nuevoPez.precioVenta = System.Convert.ToInt32(pezData["price"]);
+
+                string rarezaStr = pezData.ContainsKey("rarity")
+                    ? pezData["rarity"].ToString().ToLower()
+                    : "común";
                 AsignarRarezaYModelo(nuevoPez, rarezaStr);
 
                 Sprite spriteUnico = Resources.Load<Sprite>("FishIcons/" + nuevoPez.ID);
@@ -70,13 +77,13 @@ public class FishManager : MonoBehaviour
 
                 todosLosPeces.Add(nuevoPez);
             }
-            
+
             pecesCargados = true;
             Debug.Log($"[Firebase] {todosLosPeces.Count} peces cargados y construidos en memoria.");
         }
-        catch (System.Exception e) 
-        { 
-            Debug.LogError("Error cargando base de datos de peces: " + e.Message); 
+        catch (System.Exception e)
+        {
+            Debug.LogError("Error cargando base de datos de peces: " + e.Message);
         }
     }
 

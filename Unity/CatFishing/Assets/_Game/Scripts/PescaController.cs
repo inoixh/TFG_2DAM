@@ -125,7 +125,7 @@ public class PescaController : MonoBehaviour
     }
 
     /// <summary>
-    /// Prepara el lanzamiento de la caña, bloquea controles y actualiza la UI.
+    /// Prepara el lanzamiento de la caña, bloquea controles y reproduce sonido.
     /// </summary>
     private void EmpezarLanzamiento()
     {
@@ -140,6 +140,8 @@ public class PescaController : MonoBehaviour
 
         if (animadorCana != null)
             animadorCana.SetTrigger("Lanzar");
+        if (SoundManager.Instance != null)
+            SoundManager.Instance.SFX_Lanzar();
 
         esperandoPez = true;
         ActualizarTextosUI();
@@ -157,7 +159,7 @@ public class PescaController : MonoBehaviour
     }
 
     /// <summary>
-    /// Activa el panel de minijuego, selecciona el pez y oculta los avisos de texto.
+    /// Activa el panel de minijuego, selecciona el pez e inicia el sonido del carrete.
     /// </summary>
     private void EmpezarMinijuego()
     {
@@ -167,6 +169,8 @@ public class PescaController : MonoBehaviour
 
         if (animadorCana != null)
             animadorCana.SetTrigger("Picar");
+        if (SoundManager.Instance != null)
+            SoundManager.Instance.SFX_EmpezarForcejeo();
 
         panelMinijuego.SetActive(true);
         barraProgreso.gameObject.SetActive(true);
@@ -310,7 +314,6 @@ public class PescaController : MonoBehaviour
         velocidadPezActual = 0.5f + (diferencia * 0.3f);
         tamanoBarraActual = 0.3f - (diferencia * 0.05f);
 
-        // Aplica el bufo de la Iglesia (-0.2 de dificultad)
         if (GameManager.Instance != null)
             velocidadPezActual += GameManager.Instance.bufoReduccionDificultad;
 
@@ -374,20 +377,21 @@ public class PescaController : MonoBehaviour
     }
 
     /// <summary>
-    /// Finaliza el minijuego con éxito, procesa milagros de la Iglesia y registra en la colección.
+    /// Finaliza el minijuego con éxito, registra en la colección y reproduce sonido de ganar.
     /// </summary>
     private void GanarPesca()
     {
         TerminarMinijuego();
         if (animadorCana != null)
             animadorCana.SetTrigger("Recoger");
+        if (SoundManager.Instance != null)
+            SoundManager.Instance.SFX_Ganar();
 
         if (InventorySystem.Instance != null && pezActualEnJuego != null)
         {
             InventorySystem.Instance.AnadirObjeto(pezActualEnJuego);
             GameManager.Instance.RegistrarPezCapturado(pezActualEnJuego.ID);
 
-            // Bufo de la Iglesia (Captura doble)
             if (
                 GameManager.Instance != null
                 && Random.Range(0f, 1f) <= GameManager.Instance.bufoProbabilidadDoble
@@ -403,18 +407,20 @@ public class PescaController : MonoBehaviour
     }
 
     /// <summary>
-    /// Finaliza el minijuego con fallo.
+    /// Finaliza el minijuego con fallo y reproduce sonido de perder.
     /// </summary>
     private void PerderPesca()
     {
         TerminarMinijuego();
         if (animadorCana != null)
             animadorCana.SetTrigger("Recoger");
+        if (SoundManager.Instance != null)
+            SoundManager.Instance.SFX_Perder();
         Invoke("ResetearSistema", 1f);
     }
 
     /// <summary>
-    /// Cancela abruptamente la pesca si el jugador interactúa prematuramente.
+    /// Cancela abruptamente la pesca, parando los sonidos en curso.
     /// </summary>
     private void CancelarPesca()
     {
@@ -424,6 +430,8 @@ public class PescaController : MonoBehaviour
 
         if (animadorCana != null)
             animadorCana.SetTrigger("Recoger");
+        if (SoundManager.Instance != null)
+            SoundManager.Instance.SFX_PararForcejeo();
         Invoke("ResetearSistema", 1f);
     }
 

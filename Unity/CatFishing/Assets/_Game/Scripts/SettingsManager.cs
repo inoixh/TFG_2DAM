@@ -1,14 +1,14 @@
+using System;
+using System.Collections.Generic;
+using Firebase.Auth;
+using Firebase.Extensions;
+using Firebase.Firestore;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
-using TMPro;
-using Firebase.Auth;
-using Firebase.Firestore;
-using Firebase.Extensions;
-using System.Collections.Generic;
-using System;
 
 /// <summary>
-/// Gestiona la configuración del usuario, su persistencia en Firestore y la aplicación 
+/// Gestiona la configuración del usuario, su persistencia en Firestore y la aplicación
 /// de los ajustes a los sistemas de audio, control y gráficos del juego.
 /// </summary>
 public class SettingsManager : MonoBehaviour
@@ -38,7 +38,6 @@ public class SettingsManager : MonoBehaviour
         db = FirebaseFirestore.DefaultInstance;
         auth = FirebaseAuth.DefaultInstance;
 
-        // Intentamos cargar los ajustes al iniciar si ya hay un usuario logeado
         if (auth.CurrentUser != null)
         {
             LoadSettingsFromDatabase();
@@ -46,23 +45,33 @@ public class SettingsManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Abre el panel de opciones y sincroniza la UI con los datos más recientes de la nube.
+    /// Abre el panel de opciones ocultando el menú principal o de pausa si existen.
     /// </summary>
     public void OpenSettingsPanel()
     {
-        mainMenuPanel.SetActive(false);
-        settingsPanel.SetActive(true);
+        if (mainMenuPanel != null)
+            mainMenuPanel.SetActive(false);
+        if (UIManager.Instance != null && UIManager.Instance.panelPausa != null)
+            if (settingsPanel != null)
+                settingsPanel.SetActive(true);
+
         LoadSettingsFromDatabase();
     }
 
     /// <summary>
-    /// Guarda los ajustes, cierra el panel y vuelve al menú principal.
+    /// Guarda los ajustes, cierra el panel y vuelve al menú donde te encontrabas.
     /// </summary>
     public void CloseSettingsPanel()
     {
         SaveSettingsToDatabase();
-        settingsPanel.SetActive(false);
-        mainMenuPanel.SetActive(true);
+
+        if (settingsPanel != null)
+            settingsPanel.SetActive(false);
+
+        if (mainMenuPanel != null)
+            mainMenuPanel.SetActive(true);
+        else if (UIManager.Instance != null && UIManager.Instance.panelPausa != null)
+            UIManager.Instance.panelPausa.SetActive(true);
     }
 
     /// <summary>
@@ -70,39 +79,49 @@ public class SettingsManager : MonoBehaviour
     /// </summary>
     public void LoadSettingsFromDatabase()
     {
-        if (auth.CurrentUser == null) return;
+        if (auth.CurrentUser == null)
+            return;
 
         string uid = auth.CurrentUser.UserId;
-        db.Collection("users").Document(uid).GetSnapshotAsync().ContinueWithOnMainThread(task =>
-        {
-            if (task.IsCompleted && task.Result.Exists)
+        db.Collection("users")
+            .Document(uid)
+            .GetSnapshotAsync()
+            .ContinueWithOnMainThread(task =>
             {
-                Dictionary<string, object> settings = task.Result.GetValue<Dictionary<string, object>>("settings");
-
-                if (settings != null)
+                if (task.IsCompleted && task.Result.Exists)
                 {
-                    // 1. Actualizar valores en la UI
-                    UpdateUIValues(settings);
+                    Dictionary<string, object> settings = task.Result.GetValue<
+                        Dictionary<string, object>
+                    >("settings");
 
-                    // 2. Aplicar los cambios al juego (Audio, Gráficos, Sensibilidad)
-                    ApplySettingsToGame();
+                    if (settings != null)
+                    {
+                        UpdateUIValues(settings);
+                        ApplySettingsToGame();
+                    }
                 }
-            }
-        });
+            });
     }
 
     /// <summary>
-    /// Actualiza los elementos visuales (sliders, toggles) con los datos descargados.
+    /// Actualiza los elementos visuales con los datos descargados.
     /// </summary>
     private void UpdateUIValues(Dictionary<string, object> settings)
     {
-        if (settings.ContainsKey("master_volume")) masterSlider.value = Convert.ToSingle(settings["master_volume"]);
-        if (settings.ContainsKey("music_volume")) musicSlider.value = Convert.ToSingle(settings["music_volume"]);
-        if (settings.ContainsKey("sfx_volume")) sfxSlider.value = Convert.ToSingle(settings["sfx_volume"]);
-        if (settings.ContainsKey("mouse_sens")) mouseSensSlider.value = Convert.ToSingle(settings["mouse_sens"]);
-        if (settings.ContainsKey("invert_y")) invertYToggle.isOn = Convert.ToBoolean(settings["invert_y"]);
-        if (settings.ContainsKey("fullscreen")) fullscreenToggle.isOn = Convert.ToBoolean(settings["fullscreen"]);
-        if (settings.ContainsKey("graphics_quality")) graphicsDropdown.value = Convert.ToInt32(settings["graphics_quality"]);
+        if (settings.ContainsKey("master_volume"))
+            masterSlider.value = Convert.ToSingle(settings["master_volume"]);
+        if (settings.ContainsKey("music_volume"))
+            musicSlider.value = Convert.ToSingle(settings["music_volume"]);
+        if (settings.ContainsKey("sfx_volume"))
+            sfxSlider.value = Convert.ToSingle(settings["sfx_volume"]);
+        if (settings.ContainsKey("mouse_sens"))
+            mouseSensSlider.value = Convert.ToSingle(settings["mouse_sens"]);
+        if (settings.ContainsKey("invert_y"))
+            invertYToggle.isOn = Convert.ToBoolean(settings["invert_y"]);
+        if (settings.ContainsKey("fullscreen"))
+            fullscreenToggle.isOn = Convert.ToBoolean(settings["fullscreen"]);
+        if (settings.ContainsKey("graphics_quality"))
+            graphicsDropdown.value = Convert.ToInt32(settings["graphics_quality"]);
     }
 
     /// <summary>
@@ -110,22 +129,19 @@ public class SettingsManager : MonoBehaviour
     /// </summary>
     public void ApplySettingsToGame()
     {
-        // Aplicar Audio al SoundManager (multiplicamos por 0.01 porque tus sliders van de 0 a 100)
         if (SoundManager.Instance != null)
         {
             SoundManager.Instance.volumenMusica = musicSlider.value * 0.01f;
             SoundManager.Instance.volumenEfectos = sfxSlider.value * 0.01f;
-            // Aquí podrías añadir un volumen general si tu SoundManager lo soporta
         }
 
-        // Aplicar Sensibilidad (buscamos la cámara en la escena)
-        CamaraMovement cam = Camera.main.GetComponent<CamaraMovement>();
+        CamaraMovement cam =
+            Camera.main != null ? Camera.main.GetComponent<CamaraMovement>() : null;
         if (cam != null)
         {
-            cam.velocidad = mouseSensSlider.value * 10f; // Ajusta el multiplicador según tu gusto
+            cam.velocidad = mouseSensSlider.value * 10f;
         }
 
-        // Aplicar Gráficos nativos de Unity
         QualitySettings.SetQualityLevel(graphicsDropdown.value);
         Screen.fullScreen = fullscreenToggle.isOn;
     }
@@ -135,7 +151,8 @@ public class SettingsManager : MonoBehaviour
     /// </summary>
     private void SaveSettingsToDatabase()
     {
-        if (auth.CurrentUser == null) return;
+        if (auth.CurrentUser == null)
+            return;
 
         Dictionary<string, object> updatedSettings = new Dictionary<string, object>
         {
@@ -145,12 +162,12 @@ public class SettingsManager : MonoBehaviour
             { "mouse_sens", mouseSensSlider.value },
             { "invert_y", invertYToggle.isOn },
             { "fullscreen", fullscreenToggle.isOn },
-            { "graphics_quality", graphicsDropdown.value }
+            { "graphics_quality", graphicsDropdown.value },
         };
 
-        db.Collection("users").Document(auth.CurrentUser.UserId).UpdateAsync("settings", updatedSettings);
-        
-        // Aplicamos al momento para que el cambio sea instantáneo al cerrar
+        db.Collection("users")
+            .Document(auth.CurrentUser.UserId)
+            .UpdateAsync("settings", updatedSettings);
         ApplySettingsToGame();
     }
 }

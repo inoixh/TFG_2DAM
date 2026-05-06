@@ -30,7 +30,10 @@ public class InventorySystem : MonoBehaviour
     private ItemData[] inventario = new ItemData[15];
     private int slotSeleccionado = 0;
     private GameObject objetoActualEnMano;
-    private bool mochilaAbierta = false;
+
+    [HideInInspector]
+    public bool mochilaAbierta { get; private set; } = false;
+
     private int slotOrigen = -1;
 
     /// <summary>

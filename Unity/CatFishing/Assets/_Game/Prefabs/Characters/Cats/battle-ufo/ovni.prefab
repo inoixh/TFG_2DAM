@@ -181,7 +181,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GatoNPC
   idGatoDB: cat_battleufo
   idPezDeseado: fish_abducted_tuna
-  nivelAfinidad: 1
+  nombreGato: Gato
+  recompensaExperiencia: 25
+  recompensaMonedas: 10
+  tiempoPaciencia: 300
+  maullidoPersonalizado: {fileID: 8300000, guid: bb74834caa3f69349b7c5d3c6c0f0848, type: 3}
 --- !u!114 &5586347416302351185
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -204,9 +208,9 @@ MonoBehaviour:
   modelo3D: {fileID: 522969993244162670}
   velocidadFlote: 2
   alturaFlote: 0.2
+  elevacionExtra: 1
   waypoints: []
   animator: {fileID: 0}
   tieneAnimWalk: 0
-  tieneAnimIdle: 0
   tieneAnimTalk: 0
   mirarAlJugador: 1

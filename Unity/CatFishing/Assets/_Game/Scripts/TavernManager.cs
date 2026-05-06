@@ -154,6 +154,9 @@ public class TavernManager : MonoBehaviour
             botonComprar.interactable = false;
     }
 
+    /// <summary>
+    /// Verifica los fondos, resta el coste, aplica el modificador y reproduce el sonido de consumir.
+    /// </summary>
     private void ComprarServicio()
     {
         if (
@@ -164,6 +167,8 @@ public class TavernManager : MonoBehaviour
             GameManager.Instance.AnadirDinero(-servicioSeleccionado.precioBase);
             GameManager.Instance.ActivarServicio(servicioSeleccionado);
 
+            if (SoundManager.Instance != null)
+                SoundManager.Instance.ReproducirConsumirTaberna();
             if (UIManager.Instance != null)
                 UIManager.Instance.MostrarTooltipTemporal(
                     $"¡{servicioSeleccionado.nombreDisplay} activado!",

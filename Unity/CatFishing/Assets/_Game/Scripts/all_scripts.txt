@@ -1,0 +1,5254 @@
+// ==========================================
+// ARCHIVO: AuthManager.cs
+// ==========================================
+using System.Collections.Generic;
+using System.Text.RegularExpressions;
+using Firebase.Auth;
+using Firebase.Extensions;
+using Firebase.Firestore;
+using TMPro;
+using UnityEngine;
+using UnityEngine.UI;
+
+/// <summary>
+/// Gestiona la autenticación de usuarios, registro, inicio de sesión y conexión con Firestore.
+/// </summary>
+public class AuthManager : MonoBehaviour
+{
+    [Header("Main Menu")]
+    public TextMeshProUGUI loggedInUsernameText;
+
+    [Header("Panels")]
+    public GameObject loginPanel;
+    public GameObject registerPanel;
+    public GameObject mainMenuPanel;
+
+    [Header("Login")]
+    public TMP_InputField loginEmailInput;
+    public TMP_InputField loginPasswordInput;
+    public Toggle rememberMeToggle;
+    public TextMeshProUGUI loginFeedbackText;
+
+    [Header("Register")]
+    public TMP_InputField regUsernameInput;
+    public TMP_InputField regEmailInput;
+    public TMP_InputField regNumberInput;
+    public TMP_InputField regPasswordInput;
+    public TextMeshProUGUI regFeedbackText;
+
+    private FirebaseAuth auth;
+    private FirebaseFirestore db;
+
+    void Start()
+    {
+        auth = FirebaseAuth.DefaultInstance;
+        db = FirebaseFirestore.DefaultInstance;
+
+        if (auth.CurrentUser != null && PlayerPrefs.GetInt("RememberMe", 0) == 1)
+        {
+            ShowMainMenu();
+        }
+        else
+        {
+            auth.SignOut();
+            ShowLoginPanel();
+        }
+    }
+
+    /// <summary>
+    /// Muestra el panel de inicio de sesión y oculta el resto.
+    /// </summary>
+    public void ShowLoginPanel()
+    {
+        loginPanel.SetActive(true);
+        registerPanel.SetActive(false);
+        loginFeedbackText.text = "";
+    }
+
+    /// <summary>
+    /// Muestra el panel de registro de nueva cuenta y oculta el resto.
+    /// </summary>
+    public void ShowRegisterPanel()
+    {
+        loginPanel.SetActive(false);
+        registerPanel.SetActive(true);
+        regFeedbackText.text = "";
+    }
+
+    /// <summary>
+    /// Muestra el menú principal del juego tras una autenticación exitosa.
+    /// </summary>
+    public void ShowMainMenu()
+    {
+        loginPanel.SetActive(false);
+        registerPanel.SetActive(false);
+        mainMenuPanel.SetActive(true);
+
+        if (auth.CurrentUser != null)
+        {
+            FetchUserProfile(auth.CurrentUser.UserId);
+        }
+    }
+
+    /// <summary>
+    /// Descarga y muestra el nombre de usuario desde Firestore usando su UID.
+    /// Incluye comprobación segura para evitar quedarse congelado en 'Loading...'.
+    /// </summary>
+    private void FetchUserProfile(string uid)
+    {
+        loggedInUsernameText.text = "Cargando...";
+
+        db.Collection("users")
+            .Document(uid)
+            .GetSnapshotAsync()
+            .ContinueWithOnMainThread(task =>
+            {
+                if (task.IsFaulted || task.IsCanceled)
+                {
+                    loggedInUsernameText.text = "@Usuario";
+                    return;
+                }
+
+                DocumentSnapshot snap = task.Result;
+                if (snap.Exists && snap.TryGetValue("username", out string username))
+                {
+                    loggedInUsernameText.text = "@" + username;
+                }
+                else
+                {
+                    loggedInUsernameText.text = "@Usuario";
+                }
+            });
+    }
+
+    /// <summary>
+    /// Valida los campos e intenta iniciar sesión con Firebase Auth.
+    /// </summary>
+    public void OnLoginButtonClicked()
+    {
+        string email = loginEmailInput.text;
+        string password = loginPasswordInput.text;
+
+        if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(password))
+        {
+            loginFeedbackText.text = "<color=red>Por favor, rellena todos los campos.</color>";
+            return;
+        }
+
+        loginFeedbackText.text = "<color=green>Iniciando sesión...</color>";
+
+        auth.SignInWithEmailAndPasswordAsync(email, password)
+            .ContinueWithOnMainThread(task =>
+            {
+                if (task.IsCanceled || task.IsFaulted)
+                {
+                    loginFeedbackText.text =
+                        "<color=red>Error: Email o contraseña incorrectos.</color>";
+                    return;
+                }
+
+                PlayerPrefs.SetInt("RememberMe", rememberMeToggle.isOn ? 1 : 0);
+                PlayerPrefs.Save();
+                ShowMainMenu();
+            });
+    }
+
+    /// <summary>
+    /// Valida el formato de los datos introducidos y registra un nuevo usuario en Firebase.
+    /// </summary>
+    public void OnRegisterButtonClicked()
+    {
+        string user = regUsernameInput.text;
+        string email = regEmailInput.text;
+        string phone = regNumberInput.text;
+        string password = regPasswordInput.text;
+
+        if (
+            string.IsNullOrEmpty(user)
+            || string.IsNullOrEmpty(email)
+            || string.IsNullOrEmpty(phone)
+            || string.IsNullOrEmpty(password)
+        )
+        {
+            regFeedbackText.text = "<color=red>Por favor, rellena todos los campos.</color>";
+            return;
+        }
+
+        if (!Regex.IsMatch(email, @"^[^@\s]+@[^@\s]+\.[^@\s]+$"))
+        {
+            regFeedbackText.text = "<color=red>Dirección email no válida.</color>";
+            return;
+        }
+
+        if (phone.Length != 9)
+        {
+            regFeedbackText.text =
+                "<color=red>El número telefónico debe tener al menos 9 caracteres.</color>";
+            return;
+        }
+
+        if (!Regex.IsMatch(user, @"^[a-zA-Z0-9]+$") || !Regex.IsMatch(password, @"^[a-zA-Z0-9]+$"))
+        {
+            regFeedbackText.text =
+                "<color=red>El nombre de usuario y contraseña solo pueden contener letras y números.</color>";
+            return;
+        }
+
+        if (password.Length < 6)
+        {
+            regFeedbackText.text =
+                "<color=red>La contraseña debe ser de al menos 6 caracteres.</color>";
+            return;
+        }
+
+        regFeedbackText.text = "<color=green>Creando cuenta...</color>";
+
+        auth.CreateUserWithEmailAndPasswordAsync(email, password)
+            .ContinueWithOnMainThread(task =>
+            {
+                if (task.IsCanceled || task.IsFaulted)
+                {
+                    regFeedbackText.text = "<color=red>Error al crear la cuenta.</color>";
+                    return;
+                }
+
+                FirebaseUser newUser = task.Result.User;
+                SaveUserDataToFirestore(newUser.UserId, user, email, phone);
+            });
+    }
+
+    /// <summary>
+    /// Guarda los datos adicionales del usuario recién registrado en Firestore.
+    /// </summary>
+    private void SaveUserDataToFirestore(string uid, string username, string email, string phone)
+    {
+        Dictionary<string, object> defaultSettings = new Dictionary<string, object>
+        {
+            { "master_volume", 1.0f },
+            { "music_volume", 1.0f },
+            { "sfx_volume", 1.0f },
+        };
+
+        Dictionary<string, object> userData = new Dictionary<string, object>
+        {
+            { "uid", uid },
+            { "username", username },
+            { "email", email },
+            { "number", phone },
+            { "signup_date", FieldValue.ServerTimestamp },
+            { "settings", defaultSettings },
+        };
+
+        db.Collection("users")
+            .Document(uid)
+            .SetAsync(userData)
+            .ContinueWithOnMainThread(task =>
+            {
+                if (task.IsCompleted)
+                {
+                    PlayerPrefs.SetInt("RememberMe", 1);
+                    PlayerPrefs.Save();
+                    ShowMainMenu();
+                }
+                else
+                {
+                    regFeedbackText.text = "<color=red>Error al guardar los datos.</color>";
+                }
+            });
+    }
+
+    /// <summary>
+    /// Cierra la sesión activa en Firebase y redirige al panel de login.
+    /// </summary>
+    public void OnLogoutButtonClicked()
+    {
+        auth.SignOut();
+        PlayerPrefs.SetInt("RememberMe", 0);
+        PlayerPrefs.Save();
+        ShowLoginPanel();
+    }
+}
+
+
+// ==========================================
+// ARCHIVO: BuildingInteraction.cs
+// ==========================================
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+/// <summary>
+/// Detecta la presencia del jugador cerca de cualquier edificio interactuable
+/// y delega la apertura de la interfaz al gestor correspondiente asegurando no superponerse.
+/// </summary>
+public class BuildingInteraction : MonoBehaviour
+{
+    public enum TipoEdificio
+    {
+        Mercado,
+        Taberna,
+        Iglesia,
+    }
+
+    [Header("Configuración del Edificio")]
+    public TipoEdificio tipoDeEdificio;
+
+    private bool jugadorCerca = false;
+
+    /// <summary>
+    /// Escucha la interacción pero pide permiso al UIManager para evitar abrir varios menús a la vez.
+    /// </summary>
+    private void Update()
+    {
+        if (jugadorCerca && Keyboard.current.spaceKey.wasPressedThisFrame)
+        {
+            if (UIManager.Instance != null && !UIManager.Instance.ConsumirInteraccion())
+                return;
+
+            UIManager.Instance.OcultarInteraccion();
+
+            switch (tipoDeEdificio)
+            {
+                case TipoEdificio.Mercado:
+                    if (MarketManager.Instance != null && !MarketManager.Instance.mercadoAbierto)
+                        MarketManager.Instance.AbrirMercado();
+                    break;
+                case TipoEdificio.Taberna:
+                    if (TavernManager.Instance != null && !TavernManager.Instance.tabernaAbierta)
+                        TavernManager.Instance.AbrirTaberna();
+                    break;
+                case TipoEdificio.Iglesia:
+                    if (ChurchManager.Instance != null && !ChurchManager.Instance.iglesiaAbierta)
+                        ChurchManager.Instance.AbrirIglesia();
+                    break;
+            }
+        }
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        if (other.CompareTag("Player"))
+        {
+            jugadorCerca = true;
+            if (UIManager.Instance != null)
+                UIManager.Instance.MostrarInteraccion(
+                    "Pulsa [ESPACIO] para entrar al " + tipoDeEdificio.ToString()
+                );
+        }
+    }
+
+    private void OnTriggerExit(Collider other)
+    {
+        if (other.CompareTag("Player"))
+        {
+            jugadorCerca = false;
+            if (UIManager.Instance != null)
+                UIManager.Instance.OcultarInteraccion();
+        }
+    }
+}
+
+
+// ==========================================
+// ARCHIVO: ButtonSound.cs
+// ==========================================
+using UnityEngine;
+using UnityEngine.UI;
+
+/// <summary>
+/// Se adjunta a cualquier botón de la interfaz para reproducir automáticamente
+/// el sonido de click general sin necesidad de programarlo uno por uno.
+/// </summary>
+[RequireComponent(typeof(Button))]
+public class ButtonSound : MonoBehaviour
+{
+    /// <summary>
+    /// Añade el evento de sonido al botón al iniciar.
+    /// </summary>
+    void Start()
+    {
+        Button btn = GetComponent<Button>();
+        if (btn != null)
+        {
+            btn.onClick.AddListener(ReproducirSonidoClick);
+        }
+    }
+
+    /// <summary>
+    /// Llama al SoundManager para emitir el efecto.
+    /// </summary>
+    private void ReproducirSonidoClick()
+    {
+        if (SoundManager.Instance != null)
+        {
+            SoundManager.Instance.ReproducirClick();
+        }
+    }
+}
+
+
+// ==========================================
+// ARCHIVO: CamaraMovement.cs
+// ==========================================
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+/// <summary>
+/// Controla la rotación de la cámara basada en el movimiento del ratón con efecto suave.
+/// Permite el bloqueo temporal desde otros sistemas como diálogos o minijuegos.
+/// </summary>
+public class CamaraMovement : MonoBehaviour
+{
+    [Header("Sensibilidad y Suavizado")]
+    public float velocidad = 200f;
+
+    [Range(0.01f, 0.2f)]
+    public float tiempoSuavizado = 0.05f;
+
+    public Transform jugador;
+
+    [HideInInspector]
+    public bool rotacionBloqueada = false;
+
+    private float rotacionX = 0f;
+    private Vector2 deltaRatonActual;
+    private Vector2 velocidadRatonSuavizado;
+
+    void Start()
+    {
+        BloquearCursor();
+    }
+
+    void Update()
+    {
+        if (rotacionBloqueada || Mouse.current == null || jugador == null)
+            return;
+        if (Time.timeScale == 0f)
+            Time.timeScale = 1f;
+
+        Vector2 deltaObjetivo = Mouse.current.delta.ReadValue();
+        deltaRatonActual = Vector2.SmoothDamp(
+            deltaRatonActual,
+            deltaObjetivo,
+            ref velocidadRatonSuavizado,
+            tiempoSuavizado
+        );
+
+        float mouseX = deltaRatonActual.x * velocidad * Time.deltaTime;
+        float mouseY = deltaRatonActual.y * velocidad * Time.deltaTime;
+
+        rotacionX -= mouseY;
+        rotacionX = Mathf.Clamp(rotacionX, -60f, 60f);
+        transform.localRotation = Quaternion.Euler(rotacionX, 0f, 0f);
+
+        jugador.Rotate(Vector3.up * mouseX);
+    }
+
+    /// <summary>
+    /// Oculta y bloquea el cursor del ratón en el centro de la pantalla.
+    /// </summary>
+    public void BloquearCursor()
+    {
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+        Time.timeScale = 1f;
+    }
+
+    /// <summary>
+    /// Muestra y libera el cursor del ratón para interactuar con interfaces.
+    /// </summary>
+    public void DesbloquearCursor()
+    {
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+    }
+}
+
+
+// ==========================================
+// ARCHIVO: CatBehaviour.cs
+// ==========================================
+using UnityEngine;
+
+/// <summary>
+/// Gestiona el movimiento libre (sin NavMesh), animaciones y flotabilidad.
+/// Los gatos dan pasitos aleatorios alrededor de sus zonas de patrulla.
+/// Asume que 'Idle' es el estado por defecto en el Animator y no requiere booleanos.
+/// </summary>
+public class CatBehavior : MonoBehaviour
+{
+    public enum Comportamiento
+    {
+        Quieto,
+        Patrullando,
+    }
+
+    [Header("Tipo de Movimiento")]
+    public Comportamiento comportamientoBase;
+    public bool esFlotante = false;
+
+    [Header("Configuración Paseo (Sin NavMesh)")]
+    public float velocidadCaminar = 3f;
+    public float radioDeMerodeo = 3f;
+    public float esperaMinima = 1f;
+    public float esperaMaxima = 4f;
+    public int paseosPorZona = 3;
+
+    [Header("Configuración Flotante")]
+    public Transform modelo3D;
+    public float velocidadFlote = 2f;
+    public float alturaFlote = 0.2f;
+    public float elevacionExtra = 1f;
+    private float posYOriginalModelo;
+
+    [Header("Rutas de Patrulla")]
+    public Transform[] waypoints;
+    private int puntoActual = 0;
+    private int contadorPaseos = 0;
+
+    [Header("Animaciones Disponibles")]
+    public Animator animator;
+    public bool tieneAnimWalk = true;
+    public bool tieneAnimTalk = false;
+
+    [Header("Interacción")]
+    public bool mirarAlJugador = true;
+    private bool estaInteractuando = false;
+    private Transform jugadorTransform;
+
+    private Vector3 posicionBase;
+    private Vector3 destinoActual;
+    private bool estaCaminando = false;
+    private float temporizadorEspera;
+
+    private void Start()
+    {
+        if (modelo3D != null)
+            posYOriginalModelo = modelo3D.localPosition.y;
+        posicionBase = transform.position;
+
+        if (comportamientoBase == Comportamiento.Patrullando)
+        {
+            if (waypoints == null || waypoints.Length == 0)
+            {
+                GameObject objetoRuta = GameObject.Find("RutaGeneral");
+                if (objetoRuta != null && objetoRuta.transform.childCount > 0)
+                {
+                    waypoints = new Transform[objetoRuta.transform.childCount];
+                    for (int i = 0; i < objetoRuta.transform.childCount; i++)
+                    {
+                        waypoints[i] = objetoRuta.transform.GetChild(i);
+                    }
+                }
+            }
+
+            if (waypoints != null && waypoints.Length > 0)
+            {
+                puntoActual = Random.Range(0, waypoints.Length);
+            }
+
+            FijarNuevoDestino();
+        }
+    }
+
+    private void Update()
+    {
+        GestionarFlote();
+
+        if (estaInteractuando && jugadorTransform != null)
+        {
+            if (mirarAlJugador)
+                GirarHacia(jugadorTransform.position);
+        }
+        else if (comportamientoBase == Comportamiento.Patrullando)
+        {
+            GestionarPaseoLibre();
+        }
+
+        GestionarAnimaciones();
+    }
+
+    /// <summary>
+    /// Aplica un efecto de levitación suave si el NPC está configurado como flotante, y le suma altura.
+    /// </summary>
+    private void GestionarFlote()
+    {
+        if (esFlotante && modelo3D != null)
+        {
+            float nuevaY =
+                posYOriginalModelo
+                + elevacionExtra
+                + Mathf.Sin(Time.time * velocidadFlote) * alturaFlote;
+            modelo3D.localPosition = new Vector3(
+                modelo3D.localPosition.x,
+                nuevaY,
+                modelo3D.localPosition.z
+            );
+        }
+    }
+
+    /// <summary>
+    /// Controla la lógica de buscar un punto aleatorio, desplazarse y esperar.
+    /// </summary>
+    private void GestionarPaseoLibre()
+    {
+        if (!estaCaminando)
+        {
+            temporizadorEspera -= Time.deltaTime;
+            if (temporizadorEspera <= 0)
+            {
+                FijarNuevoDestino();
+            }
+        }
+        else
+        {
+            GirarHacia(destinoActual);
+            transform.position = Vector3.MoveTowards(
+                transform.position,
+                destinoActual,
+                velocidadCaminar * Time.deltaTime
+            );
+
+            float distancia = Vector3.Distance(
+                new Vector3(transform.position.x, 0, transform.position.z),
+                new Vector3(destinoActual.x, 0, destinoActual.z)
+            );
+            if (distancia < 0.1f)
+            {
+                LlegarADestino();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Calcula un punto aleatorio cerca de la zona base o del waypoint actual.
+    /// </summary>
+    private void FijarNuevoDestino()
+    {
+        Vector3 centroZona = transform.position;
+
+        if (waypoints != null && waypoints.Length > 0)
+        {
+            centroZona = waypoints[puntoActual].position;
+        }
+        else
+        {
+            centroZona = posicionBase;
+        }
+
+        Vector3 offsetAleatorio = new Vector3(
+            Random.Range(-radioDeMerodeo, radioDeMerodeo),
+            0,
+            Random.Range(-radioDeMerodeo, radioDeMerodeo)
+        );
+        destinoActual = centroZona + offsetAleatorio;
+        destinoActual.y = transform.position.y;
+
+        estaCaminando = true;
+    }
+
+    /// <summary>
+    /// Detiene al NPC y calcula el tiempo de espera antes del siguiente paseo.
+    /// </summary>
+    private void LlegarADestino()
+    {
+        estaCaminando = false;
+        temporizadorEspera = Random.Range(esperaMinima, esperaMaxima);
+
+        contadorPaseos++;
+        if (contadorPaseos >= paseosPorZona && waypoints != null && waypoints.Length > 0)
+        {
+            contadorPaseos = 0;
+            puntoActual++;
+            if (puntoActual >= waypoints.Length)
+                puntoActual = 0;
+        }
+    }
+
+    /// <summary>
+    /// Rota suavemente el modelo hacia una dirección específica.
+    /// </summary>
+    private void GirarHacia(Vector3 objetivo)
+    {
+        Vector3 direccion = (objetivo - transform.position).normalized;
+        direccion.y = 0;
+        if (direccion != Vector3.zero)
+        {
+            Quaternion rotacionObjetivo = Quaternion.LookRotation(direccion);
+            transform.rotation = Quaternion.Slerp(
+                transform.rotation,
+                rotacionObjetivo,
+                Time.deltaTime * 5f
+            );
+        }
+    }
+
+    /// <summary>
+    /// Envía los booleanos al Animator solo si el modelo dispone de dichas animaciones.
+    /// </summary>
+    private void GestionarAnimaciones()
+    {
+        if (animator == null)
+            return;
+
+        if (tieneAnimWalk)
+        {
+            animator.SetBool("Walk", estaCaminando && !estaInteractuando);
+        }
+
+        if (tieneAnimTalk)
+        {
+            animator.SetBool("Talk", estaInteractuando);
+        }
+    }
+
+    /// <summary>
+    /// Detiene la rutina de paseo y orienta al NPC hacia el jugador.
+    /// </summary>
+    public void IniciarInteraccion(Transform jugador)
+    {
+        estaInteractuando = true;
+        jugadorTransform = jugador;
+    }
+
+    /// <summary>
+    /// Libera al NPC para que reanude sus rutinas de patrulla o espera.
+    /// </summary>
+    public void FinalizarInteraccion()
+    {
+        estaInteractuando = false;
+        jugadorTransform = null;
+        temporizadorEspera = Random.Range(1f, 3f);
+    }
+}
+
+
+// ==========================================
+// ARCHIVO: CatData.cs
+// ==========================================
+using UnityEngine;
+
+/// <summary>
+/// Contenedor de datos para los NPCs Gatos registrados en la colección.
+/// </summary>
+public class CatData : ScriptableObject
+{
+    [Header("Identificación")]
+    public string ID;
+    public string nombreDisplay;
+
+    [Header("Datos Visuales")]
+    [TextArea(3, 5)]
+    public string descripcion;
+    public Rareza rareza;
+    public Sprite icono;
+
+    [Header("Preferencias")]
+    public string pezFavoritoID;
+}
+
+
+// ==========================================
+// ARCHIVO: CatSpawner.cs
+// ==========================================
+using System.Collections.Generic;
+using UnityEngine;
+
+public class CatSpawner : MonoBehaviour
+{
+    [System.Serializable]
+    public class RarityGroup
+    {
+        public string nombreRareza;
+
+        [Range(0f, 100f)]
+        public float probabilidad;
+        public GameObject[] prefabsGatos;
+    }
+
+    [System.Serializable]
+    public class SpawnEspecifico
+    {
+        public enum TipoRegla
+        {
+            PorID,
+            GatosQuietos,
+        }
+
+        [Tooltip(
+            "Elige si este punto es para un gato concreto o para cualquiera que esté 'Quieto'."
+        )]
+        public TipoRegla regla;
+
+        [Tooltip("Solo hace falta rellenarlo si la regla es 'PorID' (Ej: cat_leia)")]
+        public string idGato;
+
+        public Transform puntoExclusivo;
+    }
+
+    [Header("Configuración de Gatos")]
+    public RarityGroup[] gruposDeRareza;
+
+    [Header("Spawns Especiales")]
+    public SpawnEspecifico[] spawnsExclusivos;
+
+    [Header("Lugares de Aparición Comunes")]
+    public Transform[] puntosDeSpawnGenerales;
+
+    [Header("Rutas de Patrulla Generales")]
+    public Transform[] waypointsGenerales;
+
+    [Header("Ritmo y Límites")]
+    public float segundosEntreSpawns = 60f;
+    private List<GameObject> gatosActivos = new List<GameObject>();
+    private float temporizador;
+
+    void Start()
+    {
+        temporizador = segundosEntreSpawns;
+        IntentarSpawnearGato();
+    }
+
+    void Update()
+    {
+        temporizador -= Time.deltaTime;
+        if (temporizador <= 0)
+        {
+            IntentarSpawnearGato();
+            temporizador = segundosEntreSpawns + Random.Range(-10f, 20f);
+        }
+    }
+
+    private void IntentarSpawnearGato()
+    {
+        gatosActivos.RemoveAll(gato => gato == null);
+
+        int nivelJugador = PlayerPrefs.GetInt("CurrentLevel", 1);
+        int maxGatosPermitidos = Mathf.Clamp(1 + (nivelJugador / 10), 1, 6);
+
+        if (gatosActivos.Count >= maxGatosPermitidos)
+            return;
+        if (puntosDeSpawnGenerales.Length == 0)
+            return;
+
+        GameObject gatoElegido = ObtenerGatoPorRareza();
+        if (gatoElegido == null)
+            return;
+
+        Transform puntoElegido = null;
+        GatoNPC scriptGato = gatoElegido.GetComponent<GatoNPC>();
+        CatBehavior scriptBehavior = gatoElegido.GetComponent<CatBehavior>();
+
+        if (scriptGato != null && scriptBehavior != null)
+        {
+            // Mezclamos la lista de spawns especiales para que sea aleatorio si hay varios "Quietos" libres
+            List<SpawnEspecifico> spawnsDisponibles = new List<SpawnEspecifico>(spawnsExclusivos);
+            for (int i = 0; i < spawnsDisponibles.Count; i++)
+            {
+                SpawnEspecifico temp = spawnsDisponibles[i];
+                int randomIndex = Random.Range(i, spawnsDisponibles.Count);
+                spawnsDisponibles[i] = spawnsDisponibles[randomIndex];
+                spawnsDisponibles[randomIndex] = temp;
+            }
+
+            foreach (var spawnEsp in spawnsDisponibles)
+            {
+                bool esMatch = false;
+
+                // Opción A: Match exacto por ID
+                if (
+                    spawnEsp.regla == SpawnEspecifico.TipoRegla.PorID
+                    && spawnEsp.idGato == scriptGato.idGatoDB
+                )
+                {
+                    esMatch = true;
+                }
+                // Opción B: Cualquier gato con el bool "Quieto"
+                else if (
+                    spawnEsp.regla == SpawnEspecifico.TipoRegla.GatosQuietos
+                    && scriptBehavior.comportamientoBase == CatBehavior.Comportamiento.Quieto
+                )
+                {
+                    esMatch = true;
+                }
+
+                // Verificamos que no haya ya un gato subido en ese punto
+                if (esMatch && !PuntoOcupado(spawnEsp.puntoExclusivo))
+                {
+                    puntoElegido = spawnEsp.puntoExclusivo;
+                    break;
+                }
+            }
+        }
+
+        // Si no se encontró un punto especial libre (o no le correspondía), busca uno general libre
+        if (puntoElegido == null)
+        {
+            puntoElegido = ObtenerPuntoGeneralLibre();
+        }
+
+        if (puntoElegido == null)
+            return; // Si todo está lleno, no spawnea
+
+        // --- INSTANCIAR ---
+        GameObject nuevoGato = Instantiate(
+            gatoElegido,
+            puntoElegido.position,
+            puntoElegido.rotation
+        );
+
+        CatBehavior behavior = nuevoGato.GetComponent<CatBehavior>();
+        if (behavior != null && (behavior.waypoints == null || behavior.waypoints.Length == 0))
+        {
+            behavior.waypoints = waypointsGenerales;
+        }
+
+        gatosActivos.Add(nuevoGato);
+    }
+
+    private bool PuntoOcupado(Transform punto)
+    {
+        foreach (var gato in gatosActivos)
+        {
+            // Si hay un gato a menos de 1 metro de ese punto de spawn, se considera ocupado
+            if (gato != null && Vector3.Distance(gato.transform.position, punto.position) < 1f)
+                return true;
+        }
+        return false;
+    }
+
+    private Transform ObtenerPuntoGeneralLibre()
+    {
+        for (int i = 0; i < 15; i++) // Intenta buscar un punto libre 15 veces
+        {
+            Transform punto = puntosDeSpawnGenerales[
+                Random.Range(0, puntosDeSpawnGenerales.Length)
+            ];
+            if (!PuntoOcupado(punto))
+                return punto;
+        }
+        return null;
+    }
+
+    private GameObject ObtenerGatoPorRareza()
+    {
+        float pesoTotal = 0;
+        foreach (var grupo in gruposDeRareza)
+            if (grupo.prefabsGatos.Length > 0)
+                pesoTotal += grupo.probabilidad;
+
+        float tirada = Random.Range(0, pesoTotal);
+        float pesoAcumulado = 0;
+
+        foreach (var grupo in gruposDeRareza)
+        {
+            if (grupo.prefabsGatos.Length == 0)
+                continue;
+            pesoAcumulado += grupo.probabilidad;
+            if (tirada <= pesoAcumulado)
+                return grupo.prefabsGatos[Random.Range(0, grupo.prefabsGatos.Length)];
+        }
+        return null;
+    }
+}
+
+
+// ==========================================
+// ARCHIVO: ChurchManager.cs
+// ==========================================
+using System.Collections.Generic;
+using Firebase.Firestore;
+using TMPro;
+using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.UI;
+
+/// <summary>
+/// Gestiona la interfaz de la Iglesia, permite el rezo manual diario
+/// y aplica bendiciones pasivas (bufos) basadas en la constancia del jugador.
+/// </summary>
+public class ChurchManager : MonoBehaviour
+{
+    public static ChurchManager Instance;
+
+    [Header("Interfaz Visual")]
+    public GameObject panelIglesia;
+    public TextMeshProUGUI textoRacha;
+    public Transform contenedorBendiciones;
+    public GameObject prefabChurchSlot;
+    public Button botonCerrar;
+    public Button botonRezar;
+
+    public bool iglesiaAbierta { get; private set; }
+    private bool bufosCargados = false;
+
+    void Awake()
+    {
+        if (Instance == null)
+            Instance = this;
+        else
+            Destroy(gameObject);
+    }
+
+    void Start()
+    {
+        if (panelIglesia != null)
+            panelIglesia.SetActive(false);
+        if (botonCerrar != null)
+            botonCerrar.onClick.AddListener(CerrarIglesia);
+        if (botonRezar != null)
+            botonRezar.onClick.AddListener(Rezar);
+    }
+
+    void Update()
+    {
+        if (iglesiaAbierta && Keyboard.current.escapeKey.wasPressedThisFrame)
+        {
+            CerrarIglesia();
+        }
+    }
+
+    public void AbrirIglesia()
+    {
+        iglesiaAbierta = true;
+        panelIglesia.SetActive(true);
+        BloquearControles(true);
+
+        ActualizarUIRacha();
+    }
+
+    public void CerrarIglesia()
+    {
+        iglesiaAbierta = false;
+        panelIglesia.SetActive(false);
+        BloquearControles(false);
+    }
+
+    /// <summary>
+    /// Invoca el rezo, actualiza UI, bufos y emite el sonido celestial.
+    /// </summary>
+    private void Rezar()
+    {
+        if (GameManager.Instance != null && !GameManager.Instance.haRezadoHoy)
+        {
+            GameManager.Instance.RealizarRezoDiario();
+            ActualizarUIRacha();
+
+            if (SoundManager.Instance != null)
+                SoundManager.Instance.ReproducirRezarIglesia();
+
+            bufosCargados = false;
+            CargarBendicionesFirebase(GameManager.Instance.rachaIglesia);
+        }
+    }
+
+    /// <summary>
+    /// Sincroniza visualmente los textos y la interactividad del botón de rezo.
+    /// </summary>
+    private void ActualizarUIRacha()
+    {
+        int rachaActual = GameManager.Instance != null ? GameManager.Instance.rachaIglesia : 0;
+        if (textoRacha != null)
+            textoRacha.text = $"Días: {rachaActual}";
+
+        if (GameManager.Instance != null && botonRezar != null)
+        {
+            botonRezar.interactable = !GameManager.Instance.haRezadoHoy;
+        }
+
+        CargarBendicionesFirebase(rachaActual);
+    }
+
+    /// <summary>
+    /// Consulta Firestore buscando servicios de tipo 'streak' y activa tantos como días de racha tenga el jugador.
+    /// </summary>
+    private async void CargarBendicionesFirebase(int racha)
+    {
+        if (bufosCargados)
+            return;
+        FirebaseFirestore db = FirebaseFirestore.DefaultInstance;
+
+        try
+        {
+            QuerySnapshot snapshot = await db.Collection("services")
+                .WhereEqualTo("type", "streak")
+                .GetSnapshotAsync();
+
+            foreach (Transform child in contenedorBendiciones)
+                Destroy(child.gameObject);
+
+            int bufosActivados = 0;
+
+            foreach (DocumentSnapshot doc in snapshot.Documents)
+            {
+                if (bufosActivados >= racha)
+                    break;
+
+                Dictionary<string, object> dict = doc.ToDictionary();
+                ServiceData serv = ScriptableObject.CreateInstance<ServiceData>();
+
+                serv.ID = doc.Id;
+                if (dict.ContainsKey("name"))
+                    serv.nombreDisplay = dict["name"].ToString();
+                if (dict.ContainsKey("description"))
+                    serv.descripcion = dict["description"].ToString();
+                if (dict.ContainsKey("effect_target"))
+                    serv.objetivoEfecto = dict["effect_target"].ToString();
+                if (dict.ContainsKey("effect_value"))
+                    serv.valorEfecto = System.Convert.ToSingle(dict["effect_value"]);
+
+                serv.icono = Resources.Load<Sprite>("ServiceIcons/" + serv.ID);
+
+                if (GameManager.Instance != null)
+                    GameManager.Instance.ActivarServicio(serv);
+
+                GameObject slotGO = Instantiate(prefabChurchSlot, contenedorBendiciones);
+                slotGO.transform.localScale = Vector3.one;
+
+                ChurchSlot slotScript = slotGO.GetComponent<ChurchSlot>();
+                if (slotScript != null)
+                {
+                    slotScript.ConfigurarSlot(serv);
+                }
+
+                bufosActivados++;
+            }
+            bufosCargados = true;
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError("Error Iglesia: " + e.Message);
+        }
+    }
+
+    private void BloquearControles(bool estado)
+    {
+        CamaraMovement cam = FindFirstObjectByType<CamaraMovement>();
+        PlayerMovement mov = FindFirstObjectByType<PlayerMovement>();
+        if (cam != null)
+        {
+            cam.rotacionBloqueada = estado;
+            if (estado)
+                cam.DesbloquearCursor();
+            else
+                cam.BloquearCursor();
+        }
+        if (mov != null)
+            mov.movimientoBloqueado = estado;
+    }
+}
+
+
+// ==========================================
+// ARCHIVO: ChurchSlot.cs
+// ==========================================
+using TMPro;
+using UnityEngine;
+using UnityEngine.UI;
+
+/// <summary>
+/// Representa visualmente una bendición o bufo activo en la interfaz de la Iglesia.
+/// </summary>
+public class ChurchSlot : MonoBehaviour
+{
+    [Header("Componentes Visuales")]
+    public Image imagenBufo;
+    public TextMeshProUGUI textoNombre;
+    public TextMeshProUGUI textoDescripcion;
+
+    /// <summary>
+    /// Asigna la información del servicio a los elementos visuales de la casilla.
+    /// </summary>
+    public void ConfigurarSlot(ServiceData servicio)
+    {
+        if (imagenBufo != null && servicio.icono != null)
+        {
+            imagenBufo.sprite = servicio.icono;
+            imagenBufo.color = Color.white;
+        }
+        if (textoNombre != null)
+            textoNombre.text = servicio.nombreDisplay;
+        if (textoDescripcion != null)
+            textoDescripcion.text = servicio.descripcion;
+    }
+}
+
+
+// ==========================================
+// ARCHIVO: CollectionManager.cs
+// ==========================================
+using System.Collections.Generic;
+using Firebase.Extensions;
+using Firebase.Firestore;
+using TMPro;
+using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.UI;
+
+/// <summary>
+/// Gestiona la visualización del álbum del jugador, separando entidades (Gatos y Peces).
+/// Descarga el catálogo completo de gatos, lo ordena por rareza y lo cruza con el progreso guardado.
+/// </summary>
+public class CollectionManager : MonoBehaviour
+{
+    public static CollectionManager Instance;
+
+    [Header("Paneles Principales")]
+    public GameObject panelColeccion;
+    public Button botonCerrar;
+    public GameObject prefabCollectionSlot;
+    public Sprite iconoBloqueadoGato;
+    public Sprite iconoBloqueadoPez;
+
+    [Header("Gestión de Visibilidad (Scroll Views completos)")]
+    public GameObject scrollViewPeces;
+    public GameObject scrollViewGatos;
+
+    [Header("Gestión de Instanciación (Objetos Content)")]
+    public Transform contenidoPeces;
+    public Transform contenidoGatos;
+
+    [Header("Vista Previa Peces")]
+    public GameObject panelPreviewPeces;
+    public Image previewPezImagen;
+    public TextMeshProUGUI previewPezNombre;
+    public TextMeshProUGUI previewPezRareza;
+    public TextMeshProUGUI previewPezDesc;
+    public TextMeshProUGUI previewPezEstadistica;
+
+    [Header("Vista Previa Gatos")]
+    public GameObject panelPreviewGatos;
+    public Image previewGatoImagen;
+    public TextMeshProUGUI previewGatoNombre;
+    public TextMeshProUGUI previewGatoRareza;
+    public TextMeshProUGUI previewGatoDesc;
+    public TextMeshProUGUI previewGatoPezFav;
+    public Slider barraAfinidadGato;
+    public TextMeshProUGUI textoAfinidadGato;
+
+    public bool coleccionAbierta { get; private set; }
+    private bool catalogoGatosCargado = false;
+    private bool uiGenerada = false;
+
+    private List<CatData> todosLosGatos = new List<CatData>();
+
+    void Awake()
+    {
+        if (Instance == null)
+            Instance = this;
+        else
+            Destroy(gameObject);
+    }
+
+    void Start()
+    {
+        if (panelColeccion != null)
+            panelColeccion.SetActive(false);
+        if (botonCerrar != null)
+            botonCerrar.onClick.AddListener(CerrarColeccion);
+
+        CargarCatalogoGatos();
+    }
+
+    void Update()
+    {
+        if (Keyboard.current.cKey.wasPressedThisFrame)
+        {
+            if (coleccionAbierta)
+                CerrarColeccion();
+            else
+                AbrirColeccion();
+        }
+        else if (coleccionAbierta && Keyboard.current.escapeKey.wasPressedThisFrame)
+        {
+            CerrarColeccion();
+        }
+    }
+
+    /// <summary>
+    /// Descarga la base de datos de gatos desde Firestore para poder construir el álbum completo.
+    /// </summary>
+    private async void CargarCatalogoGatos()
+    {
+        if (catalogoGatosCargado)
+            return;
+
+        FirebaseFirestore db = FirebaseFirestore.DefaultInstance;
+
+        try
+        {
+            QuerySnapshot snapshot = await db.Collection("cats").GetSnapshotAsync();
+            foreach (DocumentSnapshot doc in snapshot.Documents)
+            {
+                Dictionary<string, object> dict = doc.ToDictionary();
+                CatData gato = ScriptableObject.CreateInstance<CatData>();
+
+                gato.ID = doc.Id;
+                if (dict.ContainsKey("name"))
+                    gato.nombreDisplay = dict["name"].ToString();
+                if (dict.ContainsKey("description"))
+                    gato.descripcion = dict["description"].ToString();
+                if (dict.ContainsKey("fav_fish_id"))
+                    gato.pezFavoritoID = dict["fav_fish_id"].ToString();
+
+                string rarezaStr = dict.ContainsKey("rarity")
+                    ? dict["rarity"].ToString().ToLower()
+                    : "común";
+                gato.rareza = DeterminarRareza(rarezaStr);
+
+                gato.icono = Resources.Load<Sprite>("CatIcons/" + gato.ID);
+                todosLosGatos.Add(gato);
+            }
+            catalogoGatosCargado = true;
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError("Error Colección Gatos: " + e.Message);
+        }
+    }
+
+    /// <summary>
+    /// Instancia las casillas gráficas de peces y gatos basándose en los datos descargados
+    /// y en el progreso guardado del jugador, ordenándolos previamente por rareza.
+    /// </summary>
+    private void GenerarUI()
+    {
+        if (
+            uiGenerada
+            || !catalogoGatosCargado
+            || FishManager.Instance == null
+            || !FishManager.Instance.pecesCargados
+        )
+            return;
+
+        List<ItemData> pecesOrdenados = new List<ItemData>(FishManager.Instance.todosLosPeces);
+        pecesOrdenados.Sort((p1, p2) => p1.rareza.CompareTo(p2.rareza));
+
+        foreach (ItemData pez in pecesOrdenados)
+        {
+            bool desbloqueado = GameManager.Instance.pecesCapturados.ContainsKey(pez.ID);
+            GameObject slotGO = Instantiate(prefabCollectionSlot, contenidoPeces);
+            slotGO.transform.localScale = Vector3.one;
+            slotGO
+                .GetComponent<CollectionSlot>()
+                .ConfigurarPez(pez, desbloqueado, iconoBloqueadoPez);
+        }
+
+        todosLosGatos.Sort((g1, g2) => g1.rareza.CompareTo(g2.rareza));
+
+        foreach (CatData gato in todosLosGatos)
+        {
+            bool desbloqueado = GameManager.Instance.afinidadGatos.ContainsKey(gato.ID);
+            GameObject slotGO = Instantiate(prefabCollectionSlot, contenidoGatos);
+            slotGO.transform.localScale = Vector3.one;
+            slotGO
+                .GetComponent<CollectionSlot>()
+                .ConfigurarGato(gato, desbloqueado, iconoBloqueadoGato);
+        }
+
+        uiGenerada = true;
+    }
+
+    public void AbrirColeccion()
+    {
+        coleccionAbierta = true;
+        panelColeccion.SetActive(true);
+        BloquearControles(true);
+
+        if (!uiGenerada)
+            GenerarUI();
+        MostrarPestañaPeces();
+    }
+
+    public void CerrarColeccion()
+    {
+        coleccionAbierta = false;
+        panelColeccion.SetActive(false);
+        BloquearControles(false);
+    }
+
+    /// <summary>
+    /// Cambia la visualización a la categoría de Peces, forzando la ocultación de la sección contraria.
+    /// </summary>
+    public void MostrarPestañaPeces()
+    {
+        if (scrollViewGatos)
+            scrollViewGatos.SetActive(false);
+        if (panelPreviewGatos)
+            panelPreviewGatos.SetActive(false);
+
+        if (scrollViewPeces)
+            scrollViewPeces.SetActive(true);
+        if (panelPreviewPeces)
+            panelPreviewPeces.SetActive(true);
+
+        LimpiarPreviewPeces();
+    }
+
+    /// <summary>
+    /// Cambia la visualización a la categoría de Gatos, forzando la ocultación de la sección contraria.
+    /// </summary>
+    public void MostrarPestañaGatos()
+    {
+        if (scrollViewPeces)
+            scrollViewPeces.SetActive(false);
+        if (panelPreviewPeces)
+            panelPreviewPeces.SetActive(false);
+
+        if (scrollViewGatos)
+            scrollViewGatos.SetActive(true);
+        if (panelPreviewGatos)
+            panelPreviewGatos.SetActive(true);
+
+        LimpiarPreviewGatos();
+    }
+
+    /// <summary>
+    /// Rellena el panel lateral con los datos extraídos de un pez desbloqueado.
+    /// </summary>
+    public void SeleccionarPez(ItemData pez)
+    {
+        previewPezImagen.sprite = pez.icono;
+        previewPezNombre.text = pez.nombreDisplay;
+        previewPezRareza.text = pez.rareza.NombreFormateado(); // <- Uso del nuevo método
+        previewPezDesc.text = pez.descripcion;
+        previewPezEstadistica.text =
+            "Veces pescado: " + GameManager.Instance.pecesCapturados[pez.ID];
+    }
+
+    /// <summary>
+    /// Rellena el panel lateral con los datos extraídos de un gato desbloqueado, incluyendo cálculo de afinidad.
+    /// </summary>
+    public void SeleccionarGato(CatData gato)
+    {
+        previewGatoImagen.sprite = gato.icono;
+        previewGatoNombre.text = gato.nombreDisplay;
+        previewGatoRareza.text = gato.rareza.NombreFormateado(); // <- Uso del nuevo método
+        previewGatoDesc.text = gato.descripcion;
+
+        ItemData pezFav = BuscarPezGlobal(gato.pezFavoritoID);
+        previewGatoPezFav.text = (pezFav != null ? pezFav.nombreDisplay : "Desconocido");
+
+        int xpTotal = GameManager.Instance.afinidadGatos[gato.ID];
+        ActualizarBarraAfinidadVisual(xpTotal);
+    }
+
+    /// <summary>
+    /// Reutiliza el algoritmo de cálculo de niveles para representar gráficamente el progreso de afinidad.
+    /// </summary>
+    private void ActualizarBarraAfinidadVisual(int xpTotal)
+    {
+        int nivelVirtual = 1;
+        int xpRestante = xpTotal;
+        int xpRequerida = 50;
+
+        while (xpRestante >= xpRequerida && nivelVirtual < 10)
+        {
+            xpRestante -= xpRequerida;
+            nivelVirtual++;
+            xpRequerida = Mathf.RoundToInt(xpRequerida * 1.5f);
+        }
+
+        if (nivelVirtual >= 10)
+            xpRestante = xpRequerida;
+
+        if (textoAfinidadGato)
+            textoAfinidadGato.text = $"Lvl {nivelVirtual} | XP {xpRestante}/{xpRequerida}";
+        if (barraAfinidadGato)
+        {
+            barraAfinidadGato.maxValue = xpRequerida;
+            barraAfinidadGato.value = xpRestante;
+        }
+    }
+
+    private void LimpiarPreviewPeces()
+    {
+        if (previewPezImagen)
+            previewPezImagen.sprite = iconoBloqueadoPez;
+        if (previewPezNombre)
+            previewPezNombre.text = "Selecciona un pez";
+        if (previewPezRareza)
+            previewPezRareza.text = "";
+        if (previewPezDesc)
+            previewPezDesc.text = "";
+        if (previewPezEstadistica)
+            previewPezEstadistica.text = "";
+    }
+
+    private void LimpiarPreviewGatos()
+    {
+        if (previewGatoImagen)
+            previewGatoImagen.sprite = iconoBloqueadoGato;
+        if (previewGatoNombre)
+            previewGatoNombre.text = "Selecciona un gato";
+        if (previewGatoRareza)
+            previewGatoRareza.text = "";
+        if (previewGatoDesc)
+            previewGatoDesc.text = "";
+        if (previewGatoPezFav)
+            previewGatoPezFav.text = "";
+        if (textoAfinidadGato)
+            textoAfinidadGato.text = "Lvl ? | XP 0/0";
+        if (barraAfinidadGato)
+            barraAfinidadGato.value = 0;
+    }
+
+    private ItemData BuscarPezGlobal(string id)
+    {
+        foreach (ItemData pez in FishManager.Instance.todosLosPeces)
+            if (pez.ID == id)
+                return pez;
+        return null;
+    }
+
+    private Rareza DeterminarRareza(string rarezaStr)
+    {
+        switch (rarezaStr)
+        {
+            case "común":
+            case "comun":
+                return Rareza.Comun;
+            case "raro":
+                return Rareza.Raro;
+            case "especial":
+                return Rareza.Especial;
+            case "épico":
+            case "epico":
+                return Rareza.Epico;
+            case "legendario":
+                return Rareza.Legendario;
+            default:
+                return Rareza.Comun;
+        }
+    }
+
+    private void BloquearControles(bool estado)
+    {
+        CamaraMovement cam = FindFirstObjectByType<CamaraMovement>();
+        PlayerMovement mov = FindFirstObjectByType<PlayerMovement>();
+        if (cam != null)
+        {
+            cam.rotacionBloqueada = estado;
+            if (estado)
+                cam.DesbloquearCursor();
+            else
+                cam.BloquearCursor();
+        }
+        if (mov != null)
+            mov.movimientoBloqueado = estado;
+    }
+}
+
+
+// ==========================================
+// ARCHIVO: CollectionSlot.cs
+// ==========================================
+using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.UI;
+
+/// <summary>
+/// Controla la lógica visual de una casilla en la colección, adaptándose a si contiene un pez o un gato.
+/// Ignora las interacciones si el elemento no ha sido descubierto.
+/// </summary>
+public class CollectionSlot : MonoBehaviour, IPointerClickHandler
+{
+    [Header("Componentes Visuales")]
+    public Image iconoItem;
+
+    private CatData datosGato;
+    private ItemData datosPez;
+    private bool esGato;
+    private bool estaDesbloqueado;
+
+    /// <summary>
+    /// Configura la casilla en modo Gato, mostrando su icono real si está descubierto o uno bloqueado en caso contrario.
+    /// </summary>
+    public void ConfigurarGato(CatData gato, bool desbloqueado, Sprite iconoIncognita)
+    {
+        datosGato = gato;
+        esGato = true;
+        estaDesbloqueado = desbloqueado;
+        if (iconoItem != null)
+            iconoItem.sprite = desbloqueado ? gato.icono : iconoIncognita;
+    }
+
+    /// <summary>
+    /// Configura la casilla en modo Pez, mostrando su icono real si está descubierto o uno bloqueado en caso contrario.
+    /// </summary>
+    public void ConfigurarPez(ItemData pez, bool desbloqueado, Sprite iconoIncognita)
+    {
+        datosPez = pez;
+        esGato = false;
+        estaDesbloqueado = desbloqueado;
+        if (iconoItem != null)
+            iconoItem.sprite = desbloqueado ? pez.icono : iconoIncognita;
+    }
+
+    /// <summary>
+    /// Envía la información al panel de Preview correspondiente si el elemento es público.
+    /// </summary>
+    public void OnPointerClick(PointerEventData eventData)
+    {
+        if (!estaDesbloqueado)
+            return;
+
+        if (esGato && datosGato != null && CollectionManager.Instance != null)
+            CollectionManager.Instance.SeleccionarGato(datosGato);
+        else if (!esGato && datosPez != null && CollectionManager.Instance != null)
+            CollectionManager.Instance.SeleccionarPez(datosPez);
+    }
+}
+
+
+// ==========================================
+// ARCHIVO: FishManager.cs
+// ==========================================
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Firebase.Firestore;
+using UnityEngine;
+
+/// <summary>
+/// Descarga la base de datos de peces desde Firebase y construye los objetos ItemData dinámicamente en memoria.
+/// Asigna los modelos 3D (bolsas de colores) por rareza y busca los iconos 2D automáticamente.
+/// </summary>
+public class FishManager : MonoBehaviour
+{
+    public static FishManager Instance;
+
+    [Header("Modelos 3D (Bolsas por Rareza)")]
+    public GameObject prefabBolsaComun;
+    public GameObject prefabBolsaRara;
+    public GameObject prefabBolsaEspecial;
+    public GameObject prefabBolsaEpica;
+    public GameObject prefabBolsaLegendaria;
+
+    [Header("Icono por Defecto")]
+    [Tooltip("La foto que se usará si el pez aún no tiene su propia imagen generada por IA.")]
+    public Sprite iconoGenerico;
+
+    [HideInInspector]
+    public List<ItemData> todosLosPeces = new List<ItemData>();
+
+    [HideInInspector]
+    public bool pecesCargados = false;
+
+    void Awake()
+    {
+        if (Instance == null)
+            Instance = this;
+        else
+            Destroy(gameObject);
+    }
+
+    void Start()
+    {
+        CargarPecesDesdeFirebase();
+    }
+
+    /// <summary>
+    /// Se conecta a la colección "fish" de Firestore y crea los ItemData en tiempo de ejecución.
+    /// </summary>
+    private async void CargarPecesDesdeFirebase()
+    {
+        FirebaseFirestore db = FirebaseFirestore.DefaultInstance;
+        CollectionReference pecesRef = db.Collection("fish");
+
+        try
+        {
+            QuerySnapshot snapshot = await pecesRef.GetSnapshotAsync();
+
+            foreach (DocumentSnapshot doc in snapshot.Documents)
+            {
+                Dictionary<string, object> pezData = doc.ToDictionary();
+
+                ItemData nuevoPez = ScriptableObject.CreateInstance<ItemData>();
+                nuevoPez.ID = doc.Id;
+
+                if (pezData.ContainsKey("name"))
+                    nuevoPez.nombreDisplay = pezData["name"].ToString();
+                if (pezData.ContainsKey("description"))
+                    nuevoPez.descripcion = pezData["description"].ToString();
+                if (pezData.ContainsKey("price"))
+                    nuevoPez.precioVenta = System.Convert.ToInt32(pezData["price"]);
+
+                string rarezaStr = pezData.ContainsKey("rarity")
+                    ? pezData["rarity"].ToString().ToLower()
+                    : "común";
+                AsignarRarezaYModelo(nuevoPez, rarezaStr);
+
+                Sprite spriteUnico = Resources.Load<Sprite>("FishIcons/" + nuevoPez.ID);
+                nuevoPez.icono = spriteUnico != null ? spriteUnico : iconoGenerico;
+
+                todosLosPeces.Add(nuevoPez);
+            }
+
+            pecesCargados = true;
+            Debug.Log($"[Firebase] {todosLosPeces.Count} peces cargados y construidos en memoria.");
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError("Error cargando base de datos de peces: " + e.Message);
+        }
+    }
+
+    /// <summary>
+    /// Traduce el string de la base de datos a un Enum y asigna la dificultad y el Prefab 3D de la bolsa.
+    /// </summary>
+    private void AsignarRarezaYModelo(ItemData pez, string rarezaStr)
+    {
+        switch (rarezaStr)
+        {
+            case "común":
+            case "comun":
+                pez.rareza = Rareza.Comun;
+                pez.modelo3D = prefabBolsaComun;
+                pez.dificultadMovimiento = 0.5f;
+                break;
+            case "raro":
+                pez.rareza = Rareza.Raro;
+                pez.modelo3D = prefabBolsaRara;
+                pez.dificultadMovimiento = 1f;
+                break;
+            case "especial":
+                pez.rareza = Rareza.Especial;
+                pez.modelo3D = prefabBolsaEspecial;
+                pez.dificultadMovimiento = 1.5f;
+                break;
+            case "épico":
+            case "epico":
+                pez.rareza = Rareza.Epico;
+                pez.modelo3D = prefabBolsaEpica;
+                pez.dificultadMovimiento = 2f;
+                break;
+            case "legendario":
+                pez.rareza = Rareza.Legendario;
+                pez.modelo3D = prefabBolsaLegendaria;
+                pez.dificultadMovimiento = 2.5f;
+                break;
+            default:
+                pez.rareza = Rareza.Comun;
+                pez.modelo3D = prefabBolsaComun;
+                pez.dificultadMovimiento = 0.5f;
+                break;
+        }
+    }
+}
+
+
+// ==========================================
+// ARCHIVO: GameManager.cs
+// ==========================================
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using Firebase.Auth;
+using Firebase.Extensions;
+using Firebase.Firestore;
+using TMPro;
+using UnityEngine;
+using UnityEngine.UI;
+
+/// <summary>
+/// Gestiona la progresión global, economía, rachas diarias, bufos activos temporales y la colección.
+/// Sincroniza automáticamente los datos persistentes con Firestore.
+/// </summary>
+public class GameManager : MonoBehaviour
+{
+    public static GameManager Instance;
+
+    [Header("Interfaz de Usuario")]
+    public TextMeshProUGUI textoNivel;
+    public TextMeshProUGUI textoDinero;
+    public Slider barraExperiencia;
+
+    [Header("Configuración de Progresión")]
+    public int baseXP = 100;
+    public float multiplicadorXP = 1.5f;
+
+    [Header("Modificadores Activos (Bufos)")]
+    public float bufoGananciaXP = 1f;
+    public float bufoAfinidad = 1f;
+    public float bufoRarezaPesca = 1f;
+    public float bufoPrecioVenta = 1f;
+    public float bufoReduccionDificultad = 0f;
+    public float bufoProbabilidadDoble = 0f;
+
+    [Header("Datos de Colección y Racha")]
+    public int rachaIglesia = 0;
+    public bool haRezadoHoy = false;
+    public Dictionary<string, int> pecesCapturados = new Dictionary<string, int>();
+    public Dictionary<string, int> afinidadGatos = new Dictionary<string, int>();
+
+    private string idUsuario;
+    private string idSaveSlot;
+
+    private int nivelActual = 1;
+    private int experienciaActual = 0;
+    private int dineroActual = 0;
+    private int experienciaNecesaria = 100;
+
+    void Awake()
+    {
+        Instance = this;
+        ConfigurarRutasFirebase();
+    }
+
+    void Start()
+    {
+        CargarDatosJugador();
+    }
+
+    private void ConfigurarRutasFirebase()
+    {
+        if (FirebaseAuth.DefaultInstance.CurrentUser != null)
+            idUsuario = FirebaseAuth.DefaultInstance.CurrentUser.UserId;
+        int slotIndex = PlayerPrefs.GetInt("CurrentSaveSlot", 0);
+        idSaveSlot = "slot_" + slotIndex;
+    }
+
+    private void CargarDatosJugador()
+    {
+        if (string.IsNullOrEmpty(idUsuario))
+            return;
+
+        FirebaseFirestore db = FirebaseFirestore.DefaultInstance;
+        DocumentReference docRef = db.Collection("users")
+            .Document(idUsuario)
+            .Collection("save_slots")
+            .Document(idSaveSlot);
+
+        docRef
+            .GetSnapshotAsync()
+            .ContinueWithOnMainThread(task =>
+            {
+                if (task.IsCompleted && task.Result.Exists)
+                {
+                    DocumentSnapshot snap = task.Result;
+
+                    if (snap.ContainsField("lvl"))
+                        nivelActual = snap.GetValue<int>("lvl");
+                    if (snap.ContainsField("xp"))
+                        experienciaActual = snap.GetValue<int>("xp");
+                    if (snap.ContainsField("money"))
+                        dineroActual = snap.GetValue<int>("money");
+                    if (snap.ContainsField("church_streak"))
+                        rachaIglesia = snap.GetValue<int>("church_streak");
+
+                    if (snap.ContainsField("achieved_fish"))
+                    {
+                        Dictionary<string, object> pecesDB = snap.GetValue<
+                            Dictionary<string, object>
+                        >("achieved_fish");
+                        foreach (var pez in pecesDB)
+                            pecesCapturados[pez.Key] = Convert.ToInt32(pez.Value);
+                    }
+
+                    if (snap.ContainsField("met_cats"))
+                    {
+                        Dictionary<string, object> gatosDB = snap.GetValue<
+                            Dictionary<string, object>
+                        >("met_cats");
+                        foreach (var gato in gatosDB)
+                            afinidadGatos[gato.Key] = Convert.ToInt32(gato.Value);
+                    }
+
+                    ValidarRachaDiaria(snap);
+
+                    PlayerPrefs.SetInt("Lvl", nivelActual);
+                    PlayerPrefs.SetInt("CurrentLevel", nivelActual);
+                    PlayerPrefs.Save();
+
+                    CalcularExperienciaNecesaria();
+                    ActualizarInterfaz();
+                }
+            });
+    }
+
+    private void ValidarRachaDiaria(DocumentSnapshot snap)
+    {
+        if (snap.ContainsField("church_last_pray"))
+        {
+            Timestamp ultimaConexion = snap.GetValue<Timestamp>("church_last_pray");
+            DateTime fechaUltima = ultimaConexion.ToDateTime().Date;
+            DateTime fechaHoy = DateTime.UtcNow.Date;
+
+            double diasDiferencia = (fechaHoy - fechaUltima).TotalDays;
+
+            if (diasDiferencia == 0)
+                haRezadoHoy = true;
+            else if (diasDiferencia == 1)
+                haRezadoHoy = false;
+            else
+            {
+                haRezadoHoy = false;
+                rachaIglesia = 0;
+            }
+        }
+        else
+        {
+            haRezadoHoy = false;
+        }
+
+        GuardarDatosJugador();
+    }
+
+    public void RealizarRezoDiario()
+    {
+        if (haRezadoHoy || string.IsNullOrEmpty(idUsuario))
+            return;
+
+        haRezadoHoy = true;
+        rachaIglesia++;
+
+        FirebaseFirestore db = FirebaseFirestore.DefaultInstance;
+        DocumentReference docRef = db.Collection("users")
+            .Document(idUsuario)
+            .Collection("save_slots")
+            .Document(idSaveSlot);
+        docRef.UpdateAsync("church_last_pray", FieldValue.ServerTimestamp);
+
+        GuardarDatosJugador();
+
+        if (UIManager.Instance != null)
+            UIManager.Instance.MostrarTooltipTemporal(
+                $"¡Fe renovada! Racha actual: {rachaIglesia} días",
+                4f
+            );
+    }
+
+    public void RegistrarPezCapturado(string pezID)
+    {
+        if (pecesCapturados.ContainsKey(pezID))
+            pecesCapturados[pezID]++;
+        else
+            pecesCapturados[pezID] = 1;
+        GuardarDatosJugador();
+    }
+
+    public void ActualizarAfinidadGato(string gatoID, int nuevaAfinidad)
+    {
+        afinidadGatos[gatoID] = nuevaAfinidad;
+        GuardarDatosJugador();
+    }
+
+    public void AnadirDinero(int cantidad)
+    {
+        dineroActual += cantidad;
+        ActualizarInterfaz();
+        GuardarDatosJugador();
+    }
+
+    /// <summary>
+    /// Añade experiencia, gestiona las subidas de nivel y activa sus sonidos.
+    /// </summary>
+    public void AnadirExperiencia(int cantidad)
+    {
+        experienciaActual += Mathf.RoundToInt(cantidad * bufoGananciaXP);
+
+        while (experienciaActual >= experienciaNecesaria)
+        {
+            experienciaActual -= experienciaNecesaria;
+            nivelActual++;
+            CalcularExperienciaNecesaria();
+
+            PlayerPrefs.SetInt("CurrentLevel", nivelActual);
+            PlayerPrefs.Save();
+
+            if (UIManager.Instance != null)
+                UIManager.Instance.MostrarSubidaNivelGlobal(nivelActual);
+            if (SoundManager.Instance != null)
+                SoundManager.Instance.ReproducirSubirNivel();
+        }
+
+        ActualizarInterfaz();
+        GuardarDatosJugador();
+    }
+
+    /// <summary>
+    /// Aplica el modificador e inicia un temporizador para revertirlo.
+    /// </summary>
+    public void ActivarServicio(ServiceData servicio)
+    {
+        float duracionSegundos = 180f; // Todos los consumibles duran 3 minutos (180 seg)
+
+        switch (servicio.objetivoEfecto)
+        {
+            case "rare_spawn_multiplier":
+                bufoRarezaPesca = servicio.valorEfecto;
+                StartCoroutine(
+                    TemporizadorBufo(
+                        "rare_spawn_multiplier",
+                        1f,
+                        duracionSegundos,
+                        servicio.nombreDisplay
+                    )
+                );
+                break;
+            case "xp_gain_multiplier":
+                bufoGananciaXP = servicio.valorEfecto;
+                StartCoroutine(
+                    TemporizadorBufo(
+                        "xp_gain_multiplier",
+                        1f,
+                        duracionSegundos,
+                        servicio.nombreDisplay
+                    )
+                );
+                break;
+            case "affinity_gain_multiplier":
+                bufoAfinidad = servicio.valorEfecto;
+                StartCoroutine(
+                    TemporizadorBufo(
+                        "affinity_gain_multiplier",
+                        1f,
+                        duracionSegundos,
+                        servicio.nombreDisplay
+                    )
+                );
+                break;
+            case "sell_price_multiplier":
+                bufoPrecioVenta = servicio.valorEfecto;
+                StartCoroutine(
+                    TemporizadorBufo(
+                        "sell_price_multiplier",
+                        1f,
+                        duracionSegundos,
+                        servicio.nombreDisplay
+                    )
+                );
+                break;
+            case "minigame_difficulty":
+                bufoReduccionDificultad = servicio.valorEfecto;
+                StartCoroutine(
+                    TemporizadorBufo(
+                        "minigame_difficulty",
+                        0f,
+                        duracionSegundos,
+                        servicio.nombreDisplay
+                    )
+                );
+                break;
+            case "double_catch_chance":
+                bufoProbabilidadDoble = servicio.valorEfecto;
+                StartCoroutine(
+                    TemporizadorBufo(
+                        "double_catch_chance",
+                        0f,
+                        duracionSegundos,
+                        servicio.nombreDisplay
+                    )
+                );
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Espera el tiempo establecido y devuelve la estadística a su valor base.
+    /// </summary>
+    private IEnumerator TemporizadorBufo(
+        string tipoBufo,
+        float valorBase,
+        float tiempo,
+        string nombreServicio
+    )
+    {
+        yield return new WaitForSeconds(tiempo);
+
+        switch (tipoBufo)
+        {
+            case "rare_spawn_multiplier":
+                bufoRarezaPesca = valorBase;
+                break;
+            case "xp_gain_multiplier":
+                bufoGananciaXP = valorBase;
+                break;
+            case "affinity_gain_multiplier":
+                bufoAfinidad = valorBase;
+                break;
+            case "sell_price_multiplier":
+                bufoPrecioVenta = valorBase;
+                break;
+            case "minigame_difficulty":
+                bufoReduccionDificultad = valorBase;
+                break;
+            case "double_catch_chance":
+                bufoProbabilidadDoble = valorBase;
+                break;
+        }
+
+        if (UIManager.Instance != null)
+        {
+            UIManager.Instance.MostrarTooltipTemporal(
+                $"El efecto de {nombreServicio} se ha agotado.",
+                4f
+            );
+        }
+    }
+
+    private void CalcularExperienciaNecesaria()
+    {
+        experienciaNecesaria = Mathf.RoundToInt(
+            baseXP * Mathf.Pow(multiplicadorXP, nivelActual - 1)
+        );
+    }
+
+    private void ActualizarInterfaz()
+    {
+        if (textoNivel != null)
+            textoNivel.text =
+                "Lvl " + nivelActual.ToString() + " | XP " + experienciaActual.ToString();
+        if (textoDinero != null)
+            textoDinero.text = dineroActual.ToString();
+        if (barraExperiencia != null)
+        {
+            barraExperiencia.maxValue = experienciaNecesaria;
+            barraExperiencia.value = experienciaActual;
+        }
+    }
+
+    public int ObtenerDinero()
+    {
+        return dineroActual;
+    }
+
+    public void GuardarDatosJugador()
+    {
+        if (string.IsNullOrEmpty(idUsuario))
+            return;
+
+        FirebaseFirestore db = FirebaseFirestore.DefaultInstance;
+        DocumentReference docRef = db.Collection("users")
+            .Document(idUsuario)
+            .Collection("save_slots")
+            .Document(idSaveSlot);
+
+        Dictionary<string, object> datos = new Dictionary<string, object>
+        {
+            { "lvl", nivelActual },
+            { "xp", experienciaActual },
+            { "money", dineroActual },
+            { "church_streak", rachaIglesia },
+            { "achieved_fish", pecesCapturados },
+            { "met_cats", afinidadGatos },
+        };
+
+        docRef.SetAsync(datos, SetOptions.MergeAll);
+    }
+}
+
+
+// ==========================================
+// ARCHIVO: GatoNPC.cs
+// ==========================================
+using System.Collections.Generic;
+using Firebase.Firestore;
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+/// <summary>
+/// Gestiona la interacción del NPC Gato, aplicando pérdida de afinidad si se agota la paciencia
+/// y registrando el encuentro y XP en la Colección del jugador.
+/// </summary>
+public class GatoNPC : MonoBehaviour
+{
+    [Header("Configuración Base de Datos")]
+    public string idGatoDB;
+    public string idPezDeseado;
+    public string nombreGato = "Gato";
+
+    [Header("Progreso y Recompensas")]
+    public int recompensaExperiencia = 25;
+    public int recompensaMonedas = 10;
+
+    [Header("Comportamiento")]
+    public float tiempoPaciencia = 300f;
+
+    [Header("Audio")]
+    public AudioClip maullidoPersonalizado;
+
+    private int xpAfinidadActual = 0;
+    private int nivelAfinidad = 1;
+    private int xpNecesariaAfinidad = 50;
+
+    private Dictionary<string, string> todosLosDialogos = new Dictionary<string, string>();
+    private bool datosCargados = false;
+    private bool jugadorCerca = false;
+    private bool interaccionBloqueada = false;
+
+    private CamaraMovement controlCamara;
+    private PlayerMovement controlMovimiento;
+
+    private enum EstadoInteraccion
+    {
+        Inactivo,
+        LeyendoWelcome,
+        LeyendoRespuesta,
+    }
+
+    private EstadoInteraccion estadoActual = EstadoInteraccion.Inactivo;
+
+    void Start()
+    {
+        controlCamara = FindFirstObjectByType<CamaraMovement>();
+        controlMovimiento = FindFirstObjectByType<PlayerMovement>();
+        CargarDatosDesdeFirebase();
+    }
+
+    private async void CargarDatosDesdeFirebase()
+    {
+        FirebaseFirestore db = FirebaseFirestore.DefaultInstance;
+        DocumentReference docRef = db.Collection("cats").Document(idGatoDB);
+
+        try
+        {
+            DocumentSnapshot snapshot = await docRef.GetSnapshotAsync();
+            if (snapshot.Exists)
+            {
+                if (snapshot.ContainsField("name"))
+                    nombreGato = snapshot.GetValue<string>("name");
+
+                Dictionary<string, object> dialoguesMap = snapshot.GetValue<
+                    Dictionary<string, object>
+                >("dialogues");
+                foreach (KeyValuePair<string, object> entry in dialoguesMap)
+                    todosLosDialogos[entry.Key] = entry.Value.ToString();
+
+                datosCargados = true;
+
+                if (
+                    GameManager.Instance != null
+                    && GameManager.Instance.afinidadGatos.ContainsKey(idGatoDB)
+                )
+                {
+                    xpAfinidadActual = GameManager.Instance.afinidadGatos[idGatoDB];
+                }
+                else if (GameManager.Instance != null)
+                {
+                    GameManager.Instance.ActualizarAfinidadGato(idGatoDB, 0);
+                }
+
+                CalcularNivelAfinidad();
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError("Error Firebase Gato: " + e.Message);
+        }
+    }
+
+    /// <summary>
+    /// Revisa la paciencia y permite interactuar siempre que otra interfaz no reclame prioridad.
+    /// </summary>
+    void Update()
+    {
+        if (interaccionBloqueada)
+            return;
+
+        tiempoPaciencia -= Time.deltaTime;
+        if (tiempoPaciencia <= 0 && estadoActual == EstadoInteraccion.Inactivo)
+        {
+            interaccionBloqueada = true;
+            BajarAfinidadPorImpaciencia();
+            return;
+        }
+
+        bool puedeInteractuar =
+            (jugadorCerca || estadoActual != EstadoInteraccion.Inactivo) && datosCargados;
+
+        if (puedeInteractuar)
+        {
+            if (estadoActual == EstadoInteraccion.Inactivo && UIManager.Instance != null)
+                UIManager.Instance.MostrarInteraccion("Pulsa [ESPACIO] para hablar");
+
+            if (Keyboard.current.spaceKey.wasPressedThisFrame)
+            {
+                if (estadoActual == EstadoInteraccion.Inactivo && UIManager.Instance != null)
+                {
+                    if (!UIManager.Instance.ConsumirInteraccion())
+                        return;
+                }
+                AvanzarInteraccion();
+            }
+        }
+    }
+
+    private void AvanzarInteraccion()
+    {
+        switch (estadoActual)
+        {
+            case EstadoInteraccion.Inactivo:
+                ComenzarInteraccion();
+                estadoActual = EstadoInteraccion.LeyendoWelcome;
+                string claveWelcome = "welcome" + Mathf.Clamp(nivelAfinidad, 1, 10).ToString("D2");
+                MostrarDialogo(ObtenerFrase(claveWelcome));
+                break;
+            case EstadoInteraccion.LeyendoWelcome:
+                estadoActual = EstadoInteraccion.LeyendoRespuesta;
+                IntentarDarComida();
+                break;
+            case EstadoInteraccion.LeyendoRespuesta:
+                TerminarInteraccionCompleta();
+                break;
+        }
+    }
+
+    private void IntentarDarComida()
+    {
+        if (InventorySystem.Instance == null)
+        {
+            TerminarInteraccionCompleta();
+            return;
+        }
+
+        ItemData itemEnMano = InventorySystem.Instance.ObtenerItemEnMano();
+
+        if (itemEnMano != null && itemEnMano.ID == idPezDeseado)
+        {
+            InventorySystem.Instance.ConsumirItemEnMano();
+            interaccionBloqueada = true;
+            ReaccionFeliz();
+        }
+        else if (itemEnMano != null)
+            ReaccionEnfadado();
+        else
+            ReaccionTriste();
+    }
+
+    /// <summary>
+    /// Suma XP de afinidad, emite sonido feliz, recalcula nivel y actualiza UI.
+    /// </summary>
+    private void ReaccionFeliz()
+    {
+        string claveHappy = "happy" + Mathf.Clamp(nivelAfinidad, 1, 10).ToString("D2");
+        MostrarDialogo(ObtenerFrase(claveHappy));
+
+        if (SoundManager.Instance != null)
+            SoundManager.Instance.ReproducirGatoFeliz();
+
+        if (nivelAfinidad < 10 && GameManager.Instance != null)
+        {
+            int xpGanada = Mathf.RoundToInt(50 * GameManager.Instance.bufoAfinidad);
+            xpAfinidadActual += xpGanada;
+
+            GameManager.Instance.ActualizarAfinidadGato(idGatoDB, xpAfinidadActual);
+            CalcularNivelAfinidad();
+
+            if (UIManager.Instance != null)
+                UIManager.Instance.MostrarAfinidadGato(
+                    nivelAfinidad,
+                    xpAfinidadActual,
+                    xpNecesariaAfinidad
+                );
+        }
+
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.AnadirExperiencia(recompensaExperiencia);
+            GameManager.Instance.AnadirDinero(recompensaMonedas);
+        }
+
+        Invoke("DesaparecerDeLaIsla", 4f);
+    }
+
+    /// <summary>
+    /// Calcula el nivel actual del gato basado en la XP total acumulada.
+    /// </summary>
+    private void CalcularNivelAfinidad()
+    {
+        nivelAfinidad = 1;
+        int xpRestante = xpAfinidadActual;
+        xpNecesariaAfinidad = 50;
+
+        while (xpRestante >= xpNecesariaAfinidad && nivelAfinidad < 10)
+        {
+            xpRestante -= xpNecesariaAfinidad;
+            nivelAfinidad++;
+            xpNecesariaAfinidad = Mathf.RoundToInt(xpNecesariaAfinidad * 1.5f);
+        }
+
+        if (nivelAfinidad >= 10)
+            xpAfinidadActual = xpNecesariaAfinidad;
+    }
+
+    private void BajarAfinidadPorImpaciencia()
+    {
+        if (xpAfinidadActual > 0 && GameManager.Instance != null)
+        {
+            xpAfinidadActual = Mathf.Max(0, xpAfinidadActual - 15);
+            GameManager.Instance.ActualizarAfinidadGato(idGatoDB, xpAfinidadActual);
+        }
+        MostrarDialogo("¡Llevo esperando horas! Me marcho a otra parte...");
+        Invoke("DesaparecerDeLaIsla", 3f);
+    }
+
+    /// <summary>
+    /// Reacción de enfado con su respectivo sonido.
+    /// </summary>
+    private void ReaccionEnfadado()
+    {
+        MostrarDialogo(ObtenerFrase("angry"));
+        if (SoundManager.Instance != null)
+            SoundManager.Instance.ReproducirGatoEnfadado();
+    }
+
+    /// <summary>
+    /// Reacción de tristeza con su respectivo sonido.
+    /// </summary>
+    private void ReaccionTriste()
+    {
+        MostrarDialogo(ObtenerFrase("sad"));
+        if (SoundManager.Instance != null)
+            SoundManager.Instance.ReproducirGatoEnfadado();
+    }
+
+    private string ObtenerFrase(string clave)
+    {
+        return todosLosDialogos.ContainsKey(clave) ? todosLosDialogos[clave] : "...";
+    }
+
+    private void MostrarDialogo(string frase)
+    {
+        if (UIManager.Instance != null)
+            UIManager.Instance.MostrarBocadillo(frase);
+    }
+
+    /// <summary>
+    /// Bloquea los controles, reproduce el maullido propio del gato y muestra la UI.
+    /// </summary>
+    private void ComenzarInteraccion()
+    {
+        if (SoundManager.Instance != null)
+            SoundManager.Instance.ReproducirSonidoPersonalizado(maullidoPersonalizado);
+
+        if (UIManager.Instance != null)
+        {
+            UIManager.Instance.OcultarInteraccion();
+            UIManager.Instance.MostrarAfinidadGato(
+                nivelAfinidad,
+                xpAfinidadActual,
+                xpNecesariaAfinidad
+            );
+        }
+
+        if (controlCamara != null)
+            controlCamara.rotacionBloqueada = true;
+        if (controlMovimiento != null)
+            controlMovimiento.movimientoBloqueado = true;
+
+        CatBehavior behavior = GetComponent<CatBehavior>();
+        if (behavior != null && controlMovimiento != null)
+            behavior.IniciarInteraccion(controlMovimiento.transform);
+    }
+
+    private void TerminarInteraccionCompleta()
+    {
+        estadoActual = EstadoInteraccion.Inactivo;
+        if (controlCamara != null)
+            controlCamara.rotacionBloqueada = false;
+        if (controlMovimiento != null)
+            controlMovimiento.movimientoBloqueado = false;
+        if (UIManager.Instance != null)
+            UIManager.Instance.OcultarBocadillo();
+
+        CatBehavior behavior = GetComponent<CatBehavior>();
+        if (behavior != null)
+            behavior.FinalizarInteraccion();
+    }
+
+    private void DesaparecerDeLaIsla()
+    {
+        TerminarInteraccionCompleta();
+        Destroy(gameObject);
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        if (other.CompareTag("Player") && !interaccionBloqueada)
+            jugadorCerca = true;
+    }
+
+    private void OnTriggerExit(Collider other)
+    {
+        if (other.CompareTag("Player"))
+        {
+            jugadorCerca = false;
+            if (estadoActual == EstadoInteraccion.Inactivo && UIManager.Instance != null)
+                UIManager.Instance.OcultarInteraccion();
+        }
+    }
+}
+
+
+// ==========================================
+// ARCHIVO: InventorySlot.cs
+// ==========================================
+using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.UI;
+
+/// <summary>
+/// Controla la lógica gráfica individual de cada casilla (slot) del inventario.
+/// Gestiona la visualización temporal de tooltips al pasar el ratón.
+/// </summary>
+public class InventorySlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
+{
+    [Header("Configuración")]
+    public Image iconoImagen;
+    public Image bordeSeleccion;
+    public Button botonSlot;
+
+    private int miIndice;
+    private ItemData itemActual;
+
+    void Start()
+    {
+        if (iconoImagen != null && iconoImagen.sprite == null)
+            iconoImagen.enabled = false;
+        if (bordeSeleccion != null)
+            bordeSeleccion.enabled = false;
+    }
+
+    public void ConfigurarSlot(int indice)
+    {
+        miIndice = indice;
+        if (botonSlot != null)
+        {
+            botonSlot.onClick.RemoveAllListeners();
+            botonSlot.onClick.AddListener(() => InventorySystem.Instance.ClickEnSlot(miIndice));
+        }
+    }
+
+    public void ActualizarSlot(ItemData item)
+    {
+        itemActual = item;
+
+        if (item != null)
+        {
+            iconoImagen.sprite = item.icono;
+            iconoImagen.enabled = true;
+            iconoImagen.color = Color.white;
+        }
+        else
+        {
+            iconoImagen.sprite = null;
+            iconoImagen.enabled = false;
+            iconoImagen.color = new Color(1, 1, 1, 0);
+        }
+    }
+
+    public void Seleccionar(bool seleccionado)
+    {
+        if (bordeSeleccion != null)
+            bordeSeleccion.enabled = seleccionado;
+    }
+
+    /// <summary>
+    /// Extrae la información del objeto y solicita al UIManager que la muestre durante 1.5 segundos.
+    /// Utiliza el método de extensión NombreFormateado para aplicar los colores y emojis.
+    /// </summary>
+    public void OnPointerEnter(PointerEventData eventData)
+    {
+        if (itemActual != null && UIManager.Instance != null)
+        {
+            string textoInfo =
+                $"{itemActual.nombreDisplay} \n<size=70%>{itemActual.rareza.NombreFormateado()}</size>";
+            UIManager.Instance.MostrarTooltipTemporal(textoInfo, 1.5f);
+        }
+    }
+
+    public void OnPointerExit(PointerEventData eventData)
+    {
+        if (UIManager.Instance != null)
+            UIManager.Instance.OcultarTooltip();
+    }
+}
+
+
+// ==========================================
+// ARCHIVO: InventorySystem.cs
+// ==========================================
+using System.Collections;
+using System.Collections.Generic;
+using Firebase.Auth;
+using Firebase.Firestore;
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+/// <summary>
+/// Gestiona la mochila y la barra rápida del jugador.
+/// Instancia los objetos 3D manteniendo su rotación y escala original, conectando sus componentes.
+/// Sincroniza dinámicamente los datos con el usuario logueado.
+/// </summary>
+public class InventorySystem : MonoBehaviour
+{
+    public static InventorySystem Instance;
+
+    [Header("Referencias de Escena")]
+    public Transform manoDelJugador;
+    public GameObject panelMochila;
+
+    [Header("Datos de la Caña Inicial")]
+    public ItemData datosCana;
+
+    [Header("Interfaz de Usuario")]
+    public InventorySlot[] slotsHotbar;
+    public InventorySlot[] slotsMochila;
+
+    private string idUsuario;
+    private string idSaveSlot;
+    private ItemData[] inventario = new ItemData[15];
+    private int slotSeleccionado = 0;
+    private GameObject objetoActualEnMano;
+
+    [HideInInspector]
+    public bool mochilaAbierta { get; private set; } = false;
+
+    private int slotOrigen = -1;
+
+    /// <summary>
+    /// Configura la instancia global y extrae los datos de sesión de Firebase y PlayerPrefs.
+    /// </summary>
+    void Awake()
+    {
+        Instance = this;
+
+        if (FirebaseAuth.DefaultInstance.CurrentUser != null)
+        {
+            idUsuario = FirebaseAuth.DefaultInstance.CurrentUser.UserId;
+        }
+        else
+        {
+            Debug.LogError("Error de seguridad: Ningún usuario logueado en el juego.");
+        }
+
+        int slotIndex = PlayerPrefs.GetInt("CurrentSaveSlot", 0);
+        idSaveSlot = "slot_" + slotIndex;
+    }
+
+    /// <summary>
+    /// Inicia el proceso de carga esperando a que las bases de datos de peces y del mercado estén listas en memoria.
+    /// </summary>
+    IEnumerator Start()
+    {
+        if (panelMochila != null)
+            panelMochila.SetActive(false);
+        ConfigurarIndicesSlots();
+
+        yield return new WaitUntil(() =>
+            FishManager.Instance != null && FishManager.Instance.pecesCargados
+        );
+        yield return new WaitUntil(() =>
+            MarketManager.Instance != null && MarketManager.Instance.itemsCargados
+        );
+
+        CargarInventarioDesdeNube();
+    }
+
+    void Update()
+    {
+        if (Keyboard.current.digit1Key.wasPressedThisFrame)
+            EquiparSlot(0);
+        if (Keyboard.current.digit2Key.wasPressedThisFrame)
+            EquiparSlot(1);
+        if (Keyboard.current.digit3Key.wasPressedThisFrame)
+            EquiparSlot(2);
+        if (Keyboard.current.digit4Key.wasPressedThisFrame)
+            EquiparSlot(3);
+        if (Keyboard.current.digit5Key.wasPressedThisFrame)
+            EquiparSlot(4);
+
+        if (
+            Keyboard.current.iKey.wasPressedThisFrame || Keyboard.current.tabKey.wasPressedThisFrame
+        )
+        {
+            ToggleMochila();
+        }
+    }
+
+    /// <summary>
+    /// Inicializa y enumera todas las casillas gráficas de la barra rápida y el inventario.
+    /// </summary>
+    private void ConfigurarIndicesSlots()
+    {
+        for (int i = 0; i < slotsHotbar.Length; i++)
+            if (slotsHotbar[i] != null)
+                slotsHotbar[i].ConfigurarSlot(i);
+
+        for (int i = 0; i < slotsMochila.Length; i++)
+            if (slotsMochila[i] != null)
+                slotsMochila[i].ConfigurarSlot(i + 5);
+    }
+
+    /// <summary>
+    /// Intercambia objetos entre casillas, o los selecciona para vender si el mercado está abierto.
+    /// </summary>
+    public void ClickEnSlot(int indiceClicado)
+    {
+        ItemData itemClicado = inventario[indiceClicado];
+
+        if (MarketManager.Instance != null && MarketManager.Instance.mercadoAbierto)
+        {
+            MarketManager.Instance.SeleccionarItemInventario(itemClicado, indiceClicado);
+            return;
+        }
+
+        if (slotOrigen == -1)
+        {
+            if (inventario[indiceClicado] != null)
+                slotOrigen = indiceClicado;
+        }
+        else
+        {
+            ItemData temp = inventario[indiceClicado];
+            inventario[indiceClicado] = inventario[slotOrigen];
+            inventario[slotOrigen] = temp;
+
+            slotOrigen = -1;
+            ActualizarTodaLaUI();
+            EquiparSlot(slotSeleccionado);
+            GuardarInventarioEnNube();
+        }
+    }
+
+    /// <summary>
+    /// Alterna el estado visual de la mochila, ajustando el cursor y bloqueando o liberando
+    /// los controles de movimiento y cámara del jugador.
+    /// </summary>
+    private void ToggleMochila()
+    {
+        mochilaAbierta = !mochilaAbierta;
+        if (panelMochila != null)
+            panelMochila.SetActive(mochilaAbierta);
+
+        Cursor.visible = mochilaAbierta;
+        Cursor.lockState = mochilaAbierta ? CursorLockMode.None : CursorLockMode.Locked;
+
+        CamaraMovement camara = FindFirstObjectByType<CamaraMovement>();
+        if (camara != null)
+        {
+            camara.rotacionBloqueada = mochilaAbierta;
+        }
+
+        PlayerMovement movimiento = FindFirstObjectByType<PlayerMovement>();
+        if (movimiento != null)
+        {
+            movimiento.movimientoBloqueado = mochilaAbierta;
+        }
+
+        if (!mochilaAbierta)
+            slotOrigen = -1;
+    }
+
+    /// <summary>
+    /// Instancia el modelo 3D en la mano neutralizando escalas deformadas, aplicando
+    /// la rotación original del Prefab y enlazando el Animator si es una caña.
+    /// Diferencia el ajuste posicional dependiendo del tipo de objeto equipado.
+    /// </summary>
+    public void EquiparSlot(int indice)
+    {
+        if (indice >= 5)
+            return;
+        slotSeleccionado = indice;
+
+        for (int i = 0; i < slotsHotbar.Length; i++)
+            if (slotsHotbar[i] != null)
+                slotsHotbar[i].Seleccionar(i == slotSeleccionado);
+
+        ItemData itemActual = inventario[slotSeleccionado];
+
+        if (objetoActualEnMano != null)
+            Destroy(objetoActualEnMano);
+
+        if (itemActual != null && itemActual.modelo3D != null)
+        {
+            objetoActualEnMano = Instantiate(itemActual.modelo3D, manoDelJugador);
+
+            Vector3 escalaDeseada = itemActual.modelo3D.transform.localScale;
+            Vector3 escalaDelHueso = manoDelJugador.lossyScale;
+
+            objetoActualEnMano.transform.localScale = new Vector3(
+                escalaDeseada.x / escalaDelHueso.x,
+                escalaDeseada.y / escalaDelHueso.y,
+                escalaDeseada.z / escalaDelHueso.z
+            );
+
+            objetoActualEnMano.transform.localRotation = itemActual
+                .modelo3D
+                .transform
+                .localRotation;
+
+            if (itemActual.esCanaDePescar)
+            {
+                objetoActualEnMano.transform.localPosition = itemActual
+                    .modelo3D
+                    .transform
+                    .localPosition;
+            }
+            else
+            {
+                objetoActualEnMano.transform.localPosition = Vector3.zero;
+            }
+
+            PescaController pesca = FindFirstObjectByType<PescaController>();
+
+            if (pesca != null)
+            {
+                if (itemActual.esCanaDePescar)
+                {
+                    Animator animadorPropio = objetoActualEnMano.GetComponent<Animator>();
+                    if (animadorPropio != null)
+                        pesca.animadorCana = animadorPropio;
+                }
+                else
+                {
+                    pesca.animadorCana = null;
+                }
+            }
+
+            if (UIManager.Instance != null)
+                UIManager.Instance.MostrarTooltipTemporal(itemActual.nombreDisplay, 2.5f);
+        }
+    }
+
+    /// <summary>
+    /// Añade un nuevo objeto al primer hueco libre del inventario.
+    /// </summary>
+    public bool AnadirObjeto(ItemData nuevoItem)
+    {
+        for (int i = 0; i < inventario.Length; i++)
+        {
+            if (inventario[i] == null)
+            {
+                inventario[i] = nuevoItem;
+                ActualizarTodaLaUI();
+                if (slotSeleccionado == i)
+                    EquiparSlot(i);
+                GuardarInventarioEnNube();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Destruye el objeto equipado actualmente y limpia su casilla.
+    /// </summary>
+    public void ConsumirItemEnMano()
+    {
+        inventario[slotSeleccionado] = null;
+        if (objetoActualEnMano != null)
+            Destroy(objetoActualEnMano);
+        ActualizarTodaLaUI();
+        GuardarInventarioEnNube();
+    }
+
+    /// <summary>
+    /// Vacía una casilla del inventario, destruye el objeto si estaba en la mano y guarda los cambios en la nube.
+    /// </summary>
+    public void LimpiarCasilla(int indice)
+    {
+        inventario[indice] = null;
+        if (slotSeleccionado == indice && objetoActualEnMano != null)
+            Destroy(objetoActualEnMano);
+        ActualizarTodaLaUI();
+        GuardarInventarioEnNube();
+    }
+
+    /// <summary>
+    /// Retorna los datos del objeto que el jugador sostiene actualmente.
+    /// </summary>
+    public ItemData ObtenerItemEnMano()
+    {
+        return inventario[slotSeleccionado];
+    }
+
+    /// <summary>
+    /// Retorna los datos del objeto en un índice específico del inventario.
+    /// </summary>
+    public ItemData ObtenerItemEnSlot(int indice)
+    {
+        return inventario[indice];
+    }
+
+    /// <summary>
+    /// Sincroniza visualmente todas las casillas gráficas con el array de datos actual.
+    /// </summary>
+    private void ActualizarTodaLaUI()
+    {
+        for (int i = 0; i < slotsHotbar.Length; i++)
+            if (i < inventario.Length)
+                slotsHotbar[i].ActualizarSlot(inventario[i]);
+
+        for (int i = 0; i < slotsMochila.Length; i++)
+        {
+            int idx = i + 5;
+            if (idx < inventario.Length)
+                slotsMochila[i].ActualizarSlot(inventario[idx]);
+        }
+    }
+
+    /// <summary>
+    /// Verifica si el jugador tiene una caña de pescar funcional equipada.
+    /// </summary>
+    public bool TieneCanaEnMano()
+    {
+        ItemData item = inventario[slotSeleccionado];
+        return item != null && item.esCanaDePescar;
+    }
+
+    // =========================================================================
+    // LÓGICA DE FIREBASE (DICCIONARIO)
+    // =========================================================================
+
+    /// <summary>
+    /// Convierte el array del inventario a un diccionario y lo sincroniza con Firestore.
+    /// </summary>
+    public async void GuardarInventarioEnNube()
+    {
+        if (string.IsNullOrEmpty(idUsuario))
+            return;
+
+        FirebaseFirestore db = FirebaseFirestore.DefaultInstance;
+        DocumentReference docRef = db.Collection("users")
+            .Document(idUsuario)
+            .Collection("save_slots")
+            .Document(idSaveSlot);
+
+        Dictionary<string, object> dictInventario = new Dictionary<string, object>();
+        for (int i = 0; i < inventario.Length; i++)
+        {
+            if (inventario[i] != null)
+                dictInventario["slot_" + i.ToString("D2")] = inventario[i].ID;
+            else
+                dictInventario["slot_" + i.ToString("D2")] = "";
+        }
+
+        Dictionary<string, object> data = new Dictionary<string, object>
+        {
+            { "inventory", dictInventario },
+        };
+        await docRef.SetAsync(data, SetOptions.MergeAll);
+    }
+
+    /// <summary>
+    /// Descarga el diccionario del inventario de Firestore e inyecta los objetos correspondientes en memoria.
+    /// </summary>
+    public async void CargarInventarioDesdeNube()
+    {
+        if (string.IsNullOrEmpty(idUsuario))
+            return;
+
+        FirebaseFirestore db = FirebaseFirestore.DefaultInstance;
+        DocumentReference docRef = db.Collection("users")
+            .Document(idUsuario)
+            .Collection("save_slots")
+            .Document(idSaveSlot);
+
+        try
+        {
+            DocumentSnapshot snap = await docRef.GetSnapshotAsync();
+            if (snap.Exists && snap.ContainsField("inventory"))
+            {
+                Dictionary<string, object> dictInyectado = snap.GetValue<
+                    Dictionary<string, object>
+                >("inventory");
+
+                for (int i = 0; i < inventario.Length; i++)
+                {
+                    string clave = "slot_" + i.ToString("D2");
+                    if (dictInyectado.ContainsKey(clave))
+                    {
+                        string idItem = dictInyectado[clave].ToString();
+                        inventario[i] = BuscarItemPorID(idItem);
+                    }
+                }
+            }
+            else
+            {
+                if (datosCana != null)
+                    inventario[0] = datosCana;
+                GuardarInventarioEnNube();
+            }
+        }
+        catch
+        {
+            if (datosCana != null)
+                inventario[0] = datosCana;
+        }
+
+        ActualizarTodaLaUI();
+        EquiparSlot(0);
+    }
+
+    /// <summary>
+    /// Busca un objeto por su ID consultando primero la caña base, luego el catálogo de peces y finalmente el mercado.
+    /// </summary>
+    private ItemData BuscarItemPorID(string id)
+    {
+        if (string.IsNullOrEmpty(id))
+            return null;
+        if (datosCana != null && datosCana.ID == id)
+            return datosCana;
+
+        if (FishManager.Instance != null)
+        {
+            foreach (ItemData pez in FishManager.Instance.todosLosPeces)
+                if (pez.ID == id)
+                    return pez;
+        }
+
+        if (MarketManager.Instance != null)
+        {
+            foreach (ItemData item in MarketManager.Instance.todosLosItems)
+                if (item.ID == id)
+                    return item;
+        }
+
+        return null;
+    }
+}
+
+
+// ==========================================
+// ARCHIVO: ItemData.cs
+// ==========================================
+using UnityEngine;
+
+public enum Rareza
+{
+    Comun,
+    Raro,
+    Especial,
+    Epico,
+    Legendario,
+}
+
+/// <summary>
+/// Métodos de extensión para el enumerador Rareza.
+/// Devuelve el texto formateado con emojis y colores para TextMeshPro.
+/// </summary>
+public static class RarezaExtensions
+{
+    public static string NombreFormateado(this Rareza rareza)
+    {
+        switch (rareza)
+        {
+            case Rareza.Comun:
+                return "<color=#55FF55>Común</color>";
+            case Rareza.Raro:
+                return "<color=#5555FF>Raro</color>";
+            case Rareza.Especial:
+                return "<color=#FFAA00>Especial</color>";
+            case Rareza.Epico:
+                return "<color=#AA55FF>Épico</color>";
+            case Rareza.Legendario:
+                return "<color=#FFFF55>Legendario</color>";
+            default:
+                return "Común";
+        }
+    }
+}
+
+/// <summary>
+/// Contenedor de datos para los objetos del juego (peces, cañas, etc.).
+/// </summary>
+[CreateAssetMenu(fileName = "NuevoItem", menuName = "Pesca/Nuevo Item")]
+public class ItemData : ScriptableObject
+{
+    [Header("ID Único (Para Base de Datos)")]
+    public string ID;
+
+    [Header("Datos Visuales")]
+    public string nombreDisplay;
+
+    [TextArea(3, 5)]
+    public string descripcion;
+    public Sprite icono;
+    public GameObject modelo3D;
+
+    [Header("Configuración Pesca")]
+    public bool esCanaDePescar;
+    public Rareza rareza;
+
+    [Range(0.1f, 3f)]
+    public float dificultadMovimiento = 1f;
+
+    [Header("Economía")]
+    public int precioVenta = 10;
+}
+
+
+// ==========================================
+// ARCHIVO: MarketManager.cs
+// ==========================================
+using System.Collections.Generic;
+using Firebase.Extensions;
+using Firebase.Firestore;
+using TMPro;
+using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.UI;
+
+/// <summary>
+/// Gestiona la lógica comercial, la generación dinámica del catálogo desde Firestore
+/// y la actualización visual de las transacciones.
+/// </summary>
+public class MarketManager : MonoBehaviour
+{
+    public static MarketManager Instance;
+
+    [Header("Paneles Principales")]
+    public GameObject panelMercado;
+
+    [Header("Panel de Previsualización")]
+    public Image imagenPreview;
+    public Sprite iconoGenerico;
+    public TextMeshProUGUI textoNombre;
+    public TextMeshProUGUI textoRareza;
+    public TextMeshProUGUI textoDescripcion;
+    public TextMeshProUGUI textoPrecio;
+
+    [Header("Botones de Acción")]
+    public Button botonComprar;
+    public Button botonVender;
+    public Button botonCerrar;
+
+    [Header("Opciones de Tienda")]
+    public Transform contenedorProductos;
+    public GameObject prefabMarketSlot;
+
+    public bool mercadoAbierto { get; private set; }
+
+    private ItemData itemSeleccionado;
+    private int indiceInventarioSeleccionado = -1;
+    private bool seleccionDesdeTienda = false;
+    private bool catalogoCargado = false;
+
+    [HideInInspector]
+    public List<ItemData> todosLosItems = new List<ItemData>();
+
+    [HideInInspector]
+    public bool itemsCargados = false;
+
+    private void Awake()
+    {
+        if (Instance == null)
+            Instance = this;
+        else
+            Destroy(gameObject);
+
+        mercadoAbierto = false;
+    }
+
+    private void Start()
+    {
+        if (panelMercado != null)
+            panelMercado.SetActive(false);
+
+        botonComprar.onClick.AddListener(ComprarItem);
+        botonVender.onClick.AddListener(VenderItem);
+        botonCerrar.onClick.AddListener(CerrarMercado);
+
+        CargarCatalogoDesdeFirebase();
+    }
+
+    private void Update()
+    {
+        if (mercadoAbierto && Keyboard.current.escapeKey.wasPressedThisFrame)
+        {
+            CerrarMercado();
+        }
+    }
+
+    /// <summary>
+    /// Se conecta a Firestore, construye los ItemData en memoria, carga sus recursos (2D y 3D)
+    /// y rellena la tienda filtrando la basura.
+    /// </summary>
+    private async void CargarCatalogoDesdeFirebase()
+    {
+        if (catalogoCargado)
+            return;
+
+        FirebaseFirestore db = FirebaseFirestore.DefaultInstance;
+        CollectionReference itemsRef = db.Collection("items");
+
+        try
+        {
+            QuerySnapshot snapshot = await itemsRef.GetSnapshotAsync();
+
+            foreach (DocumentSnapshot doc in snapshot.Documents)
+            {
+                Dictionary<string, object> itemDict = doc.ToDictionary();
+
+                ItemData nuevoItem = ScriptableObject.CreateInstance<ItemData>();
+                nuevoItem.ID = doc.Id;
+
+                string tipoItem = "";
+                Sprite spriteUnico;
+                GameObject modeloUnico;
+
+                if (itemDict.ContainsKey("name"))
+                    nuevoItem.nombreDisplay = itemDict["name"].ToString();
+                if (itemDict.ContainsKey("description"))
+                    nuevoItem.descripcion = itemDict["description"].ToString();
+                if (itemDict.ContainsKey("price"))
+                    nuevoItem.precioVenta = System.Convert.ToInt32(itemDict["price"]);
+
+                if (itemDict.ContainsKey("type"))
+                {
+                    tipoItem = itemDict["type"].ToString().ToLower();
+                    if (tipoItem == "rod")
+                        nuevoItem.esCanaDePescar = true;
+                }
+
+                // Extracción dinámica de la rareza desde la BD
+                string rarezaStr = itemDict.ContainsKey("rarity")
+                    ? itemDict["rarity"].ToString().ToLower()
+                    : "común";
+                nuevoItem.rareza = DeterminarRareza(rarezaStr);
+
+                spriteUnico = Resources.Load<Sprite>("ItemIcons/" + nuevoItem.ID);
+                nuevoItem.icono = spriteUnico != null ? spriteUnico : iconoGenerico;
+
+                modeloUnico = Resources.Load<GameObject>("ItemModels/" + nuevoItem.ID);
+                nuevoItem.modelo3D = modeloUnico;
+
+                todosLosItems.Add(nuevoItem);
+
+                if (tipoItem != "trash")
+                {
+                    GameObject slotGO = Instantiate(prefabMarketSlot, contenedorProductos);
+                    slotGO.transform.localScale = Vector3.one;
+
+                    MarketSlot slotScript = slotGO.GetComponent<MarketSlot>();
+                    if (slotScript != null)
+                    {
+                        slotScript.ConfigurarSlot(nuevoItem);
+                    }
+                }
+            }
+
+            catalogoCargado = true;
+            itemsCargados = true;
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError("Error cargando base de datos del mercado: " + e.Message);
+        }
+    }
+
+    /// <summary>
+    /// Traduce el texto de la BD al enumerador correspondiente de rareza.
+    /// </summary>
+    private Rareza DeterminarRareza(string rarezaStr)
+    {
+        switch (rarezaStr)
+        {
+            case "común":
+            case "comun":
+                return Rareza.Comun;
+            case "raro":
+                return Rareza.Raro;
+            case "especial":
+                return Rareza.Especial;
+            case "épico":
+            case "epico":
+                return Rareza.Epico;
+            case "legendario":
+                return Rareza.Legendario;
+            default:
+                return Rareza.Comun;
+        }
+    }
+
+    /// <summary>
+    /// Bloquea los controles del jugador, muestra la interfaz del mercado y activa la mochila.
+    /// </summary>
+    public void AbrirMercado()
+    {
+        mercadoAbierto = true;
+        panelMercado.SetActive(true);
+
+        if (InventorySystem.Instance != null)
+        {
+            InventorySystem.Instance.panelMochila.SetActive(true);
+        }
+
+        CamaraMovement camara = FindFirstObjectByType<CamaraMovement>();
+        if (camara != null)
+        {
+            camara.rotacionBloqueada = true;
+            camara.DesbloquearCursor();
+        }
+
+        PlayerMovement movimiento = FindFirstObjectByType<PlayerMovement>();
+        if (movimiento != null)
+        {
+            movimiento.movimientoBloqueado = true;
+        }
+
+        LimpiarPreview();
+    }
+
+    /// <summary>
+    /// Oculta la interfaz del mercado, la mochila y devuelve el control de movimiento y cámara al jugador.
+    /// </summary>
+    public void CerrarMercado()
+    {
+        mercadoAbierto = false;
+        panelMercado.SetActive(false);
+
+        if (InventorySystem.Instance != null)
+        {
+            InventorySystem.Instance.panelMochila.SetActive(false);
+        }
+
+        CamaraMovement camara = FindFirstObjectByType<CamaraMovement>();
+        if (camara != null)
+        {
+            camara.rotacionBloqueada = false;
+            camara.BloquearCursor();
+        }
+
+        PlayerMovement movimiento = FindFirstObjectByType<PlayerMovement>();
+        if (movimiento != null)
+        {
+            movimiento.movimientoBloqueado = false;
+        }
+    }
+
+    /// <summary>
+    /// Muestra los datos de un objeto procedente del catálogo de la tienda y ajusta los botones.
+    /// </summary>
+    public void SeleccionarItemTienda(ItemData item)
+    {
+        itemSeleccionado = item;
+        seleccionDesdeTienda = true;
+        indiceInventarioSeleccionado = -1;
+
+        ActualizarPreview(item);
+        ConfigurarBotones(true, false);
+    }
+
+    /// <summary>
+    /// Muestra los datos de un objeto procedente de la mochila del jugador y ajusta los botones.
+    /// </summary>
+    public void SeleccionarItemInventario(ItemData item, int indiceSlot)
+    {
+        if (item == null)
+            return;
+
+        itemSeleccionado = item;
+        seleccionDesdeTienda = false;
+        indiceInventarioSeleccionado = indiceSlot;
+
+        ActualizarPreview(item);
+        ConfigurarBotones(false, true);
+    }
+
+    /// <summary>
+    /// Rellena el panel de vista previa con la información gráfica y de texto del objeto.
+    /// </summary>
+    private void ActualizarPreview(ItemData item)
+    {
+        imagenPreview.sprite = item.icono;
+        imagenPreview.color = Color.white;
+        textoNombre.text = item.nombreDisplay;
+        textoRareza.text = item.rareza.NombreFormateado();
+        textoDescripcion.text = item.descripcion;
+        textoPrecio.text = item.precioVenta.ToString();
+    }
+
+    /// <summary>
+    /// Restablece el panel de previsualización visualmente cuando no hay nada seleccionado.
+    /// </summary>
+    private void LimpiarPreview()
+    {
+        itemSeleccionado = null;
+        imagenPreview.sprite = iconoGenerico;
+        imagenPreview.color = new Color(1, 1, 1, 0);
+        textoNombre.text = "Selecciona un objeto";
+        textoRareza.text = "";
+        textoDescripcion.text = "";
+        textoPrecio.text = "";
+
+        ConfigurarBotones(false, false);
+    }
+
+    /// <summary>
+    /// Interacciona con el componente Button para activar o desactivar su funcionalidad.
+    /// </summary>
+    private void ConfigurarBotones(bool puedeComprar, bool puedeVender)
+    {
+        botonComprar.interactable = puedeComprar;
+        botonVender.interactable = puedeVender;
+    }
+
+    /// <summary>
+    /// Ejecuta la compra, descuenta dinero, añade a mochila y reproduce sonido.
+    /// </summary>
+    private void ComprarItem()
+    {
+        if (itemSeleccionado == null || !seleccionDesdeTienda)
+            return;
+
+        int dineroActual = GameManager.Instance.ObtenerDinero();
+
+        if (dineroActual >= itemSeleccionado.precioVenta)
+        {
+            bool anadido = InventorySystem.Instance.AnadirObjeto(itemSeleccionado);
+            if (anadido)
+            {
+                GameManager.Instance.AnadirDinero(-itemSeleccionado.precioVenta);
+                if (SoundManager.Instance != null)
+                    SoundManager.Instance.ReproducirComprar();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Ejecuta la venta, retira de la mochila, suma dinero y reproduce sonido.
+    /// </summary>
+    private void VenderItem()
+    {
+        if (itemSeleccionado == null || seleccionDesdeTienda || indiceInventarioSeleccionado == -1)
+            return;
+
+        int gananciaFinal = Mathf.RoundToInt(
+            itemSeleccionado.precioVenta * GameManager.Instance.bufoPrecioVenta
+        );
+        GameManager.Instance.AnadirDinero(gananciaFinal);
+        InventorySystem.Instance.LimpiarCasilla(indiceInventarioSeleccionado);
+
+        if (SoundManager.Instance != null)
+            SoundManager.Instance.ReproducirVender();
+        LimpiarPreview();
+    }
+}
+
+
+// ==========================================
+// ARCHIVO: MarketSlot.cs
+// ==========================================
+using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.UI;
+
+/// <summary>
+/// Representa un objeto a la venta dentro de la interfaz del mercado.
+/// Gestiona la visualización temporal de tooltips al pasar el ratón.
+/// </summary>
+public class MarketSlot
+    : MonoBehaviour,
+        IPointerClickHandler,
+        IPointerEnterHandler,
+        IPointerExitHandler
+{
+    [Header("Componentes Visuales")]
+    public Image iconoItem;
+
+    private ItemData datosItem;
+
+    /// <summary>
+    /// Asigna la información del objeto a esta casilla y activa visualmente su icono.
+    /// </summary>
+    public void ConfigurarSlot(ItemData item)
+    {
+        datosItem = item;
+
+        if (iconoItem != null && item != null)
+        {
+            iconoItem.sprite = item.icono;
+            iconoItem.color = Color.white;
+        }
+    }
+
+    /// <summary>
+    /// Notifica al gestor del mercado que el jugador ha seleccionado este producto.
+    /// </summary>
+    public void OnPointerClick(PointerEventData eventData)
+    {
+        if (datosItem != null && MarketManager.Instance != null)
+        {
+            MarketManager.Instance.SeleccionarItemTienda(datosItem);
+        }
+    }
+
+    /// <summary>
+    /// Extrae la información del objeto y solicita al UIManager que la muestre temporalmente.
+    /// </summary>
+    public void OnPointerEnter(PointerEventData eventData)
+    {
+        if (datosItem != null && UIManager.Instance != null)
+        {
+            string textoInfo =
+                $"{datosItem.nombreDisplay} \n<size=70%>{datosItem.rareza.NombreFormateado()}</size>";
+            UIManager.Instance.MostrarTooltipTemporal(textoInfo, 1.5f);
+        }
+    }
+
+    /// <summary>
+    /// Oculta el tooltip de información al retirar el ratón de la casilla.
+    /// </summary>
+    public void OnPointerExit(PointerEventData eventData)
+    {
+        if (UIManager.Instance != null)
+            UIManager.Instance.OcultarTooltip();
+    }
+}
+
+
+// ==========================================
+// ARCHIVO: MenuManager.cs
+// ==========================================
+using System.Collections.Generic;
+using Firebase.Auth;
+using Firebase.Extensions;
+using Firebase.Firestore;
+using TMPro;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.UI;
+
+/// <summary>
+/// Gestiona la navegación del menú principal, el audio de la interfaz y la lógica
+/// de carga y creación de partidas guardadas (Save Slots) conectadas a Firestore.
+/// </summary>
+public class MenuManager : MonoBehaviour
+{
+    [Header("Paneles de Navegación")]
+    public GameObject mainMenuPanel;
+    public GameObject saveSlotsPanel;
+
+    [Header("UI de Partidas Guardadas")]
+    public TextMeshProUGUI[] textosSlots;
+    public Button[] botonesSlots;
+
+    private FirebaseFirestore db;
+    private FirebaseAuth auth;
+
+    private void Start()
+    {
+        db = FirebaseFirestore.DefaultInstance;
+        auth = FirebaseAuth.DefaultInstance;
+    }
+
+    /// <summary>
+    /// Oculta el menú principal, muestra el panel de selección de partidas
+    /// y solicita la descarga de datos a la base de datos.
+    /// </summary>
+    public void OpenSaveSlotsPanel()
+    {
+        saveSlotsPanel.SetActive(true);
+        CargarDatosSlots();
+    }
+
+    /// <summary>
+    /// Oculta el panel de partidas y vuelve al menú principal.
+    /// </summary>
+    public void CloseSaveSlotsPanel()
+    {
+        saveSlotsPanel.SetActive(false);
+    }
+
+    /// <summary>
+    /// Consulta Firestore para comprobar el estado de los 3 slots de guardado.
+    /// Actualiza la UI mostrando los datos de la partida o habilitando la creación de una nueva.
+    /// </summary>
+    private void CargarDatosSlots()
+    {
+        if (auth.CurrentUser == null)
+            return;
+        string uid = auth.CurrentUser.UserId;
+
+        for (int i = 0; i < 3; i++)
+        {
+            int index = i;
+            textosSlots[index].text = "Cargando...";
+            botonesSlots[index].interactable = false;
+
+            DocumentReference docRef = db.Collection("users")
+                .Document(uid)
+                .Collection("save_slots")
+                .Document("slot_" + index);
+
+            docRef
+                .GetSnapshotAsync()
+                .ContinueWithOnMainThread(task =>
+                {
+                    botonesSlots[index].interactable = true;
+
+                    if (task.IsCompleted && !task.IsFaulted && task.Result.Exists)
+                    {
+                        DocumentSnapshot snap = task.Result;
+                        int nivel = snap.GetValue<int>("lvl");
+                        int dinero = snap.GetValue<int>("money");
+
+                        textosSlots[index].text =
+                            $"Partida {index + 1}\n<size=80%>Nivel {nivel} - Monedas: {dinero}</size>";
+
+                        botonesSlots[index].onClick.RemoveAllListeners();
+                        botonesSlots[index].onClick.AddListener(() => IniciarPartida(index));
+                    }
+                    else
+                    {
+                        textosSlots[index].text =
+                            $"Partida {index + 1}\n<color=#A8E6CF><size=80%>+ Nueva Partida</size></color>";
+
+                        botonesSlots[index].onClick.RemoveAllListeners();
+                        botonesSlots[index].onClick.AddListener(() => CrearNuevaPartida(index));
+                    }
+                });
+        }
+    }
+
+    /// <summary>
+    /// Crea un nuevo documento en la subcolección save_slots con los valores iniciales
+    /// por defecto y automáticamente inicia el juego.
+    /// </summary>
+    private void CrearNuevaPartida(int slotIndex)
+    {
+        if (auth.CurrentUser == null)
+            return;
+        string uid = auth.CurrentUser.UserId;
+
+        botonesSlots[slotIndex].interactable = false;
+        textosSlots[slotIndex].text = "Creando mundo...";
+
+        Dictionary<string, object> nuevaPartida = new Dictionary<string, object>
+        {
+            { "lvl", 1 },
+            { "xp", 0 },
+            { "money", 0 },
+            { "church_streak", 0 },
+            { "tavern_lvl", 1 },
+            { "last_login", FieldValue.ServerTimestamp },
+        };
+
+        db.Collection("users")
+            .Document(uid)
+            .Collection("save_slots")
+            .Document("slot_" + slotIndex)
+            .SetAsync(nuevaPartida)
+            .ContinueWithOnMainThread(task =>
+            {
+                if (task.IsCompleted)
+                {
+                    IniciarPartida(slotIndex);
+                }
+            });
+    }
+
+    /// <summary>
+    /// Guarda en las preferencias locales el slot seleccionado, invoca la transición musical y carga la escena del juego.
+    /// </summary>
+    private void IniciarPartida(int slotIndex)
+    {
+        PlayerPrefs.SetInt("CurrentSaveSlot", slotIndex);
+        PlayerPrefs.Save();
+
+        if (SoundManager.Instance != null)
+        {
+            SoundManager.Instance.ReproducirMusicaJuego();
+        }
+
+        changeScene("Game");
+    }
+
+    /// <summary>
+    /// Carga una nueva escena por su nombre en Unity.
+    /// </summary>
+    public void changeScene(string scene)
+    {
+        SceneManager.LoadScene(scene);
+    }
+}
+
+
+// ==========================================
+// ARCHIVO: PescaController.cs
+// ==========================================
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.UI;
+
+/// <summary>
+/// Gestiona la mecánica de pesca, la dificultad dinámica, las animaciones y la comunicación
+/// en tiempo real con la interfaz de usuario para indicar las acciones disponibles.
+/// </summary>
+public class PescaController : MonoBehaviour
+{
+    [Header("Referencias")]
+    public Animator animadorCana;
+
+    [HideInInspector]
+    public PlayerMovement movimientoJugador;
+
+    [Header("Interfaz Minijuego")]
+    public GameObject panelMinijuego;
+    public RectTransform barraVerde;
+    public RectTransform iconoPez;
+    public Sprite iconoIncognita;
+    public Slider barraProgreso;
+    public Image imagenRelleno;
+    public float alturaContenedor = 300f;
+
+    [Header("Configuración Minijuego")]
+    public float velocidadSubidaBarra = 2f;
+    public float gravedadBarra = 1.5f;
+    public float velocidadProgreso = 0.3f;
+
+    [Range(0f, 100f)]
+    public float probabilidadPezMision = 35f;
+
+    [HideInInspector]
+    public bool enZonaDePesca = false;
+
+    private bool puedeLanzar = true;
+    private bool esperandoPez = false;
+    private bool enMinijuego = false;
+    private float posBarra = 0.5f;
+    private float posPez = 0.5f;
+    private float progreso = 0f;
+    private float tiempoPez = 0f;
+
+    private float velocidadPezActual = 0.5f;
+    private float tamanoBarraActual = 0.3f;
+
+    private ItemData pezActualEnJuego;
+    private Coroutine cronometroEspera;
+    private CamaraMovement controlCamara;
+
+    void Start()
+    {
+        movimientoJugador = GetComponentInParent<PlayerMovement>();
+        controlCamara = FindFirstObjectByType<CamaraMovement>();
+
+        if (panelMinijuego != null)
+            panelMinijuego.SetActive(false);
+        if (barraProgreso != null)
+            barraProgreso.gameObject.SetActive(false);
+    }
+
+    void Update()
+    {
+        if (Mouse.current == null)
+            return;
+
+        if (InventorySystem.Instance != null && !InventorySystem.Instance.TieneCanaEnMano())
+        {
+            if (UIManager.Instance != null)
+                UIManager.Instance.OcultarInteraccion();
+            return;
+        }
+
+        if (enMinijuego)
+        {
+            ControlarMinijuego();
+            return;
+        }
+
+        if (Mouse.current.leftButton.wasPressedThisFrame)
+        {
+            if (puedeLanzar && enZonaDePesca)
+                EmpezarLanzamiento();
+            else if (esperandoPez)
+                CancelarPesca();
+        }
+    }
+
+    /// <summary>
+    /// Recibe la señal física del agua y actualiza el estado visual del jugador.
+    /// </summary>
+    public void EstablecerZonaDePesca(bool estado)
+    {
+        enZonaDePesca = estado;
+        ActualizarTextosUI();
+    }
+
+    /// <summary>
+    /// Evalúa el estado actual de la caña para mostrar u ocultar los avisos de interacción.
+    /// </summary>
+    private void ActualizarTextosUI()
+    {
+        if (UIManager.Instance == null)
+            return;
+
+        if (enMinijuego)
+        {
+            UIManager.Instance.OcultarInteraccion();
+        }
+        else if (esperandoPez)
+        {
+            UIManager.Instance.MostrarInteraccion("Pulsa [CLICK IZQ] para dejar de pescar");
+        }
+        else if (puedeLanzar && enZonaDePesca)
+        {
+            UIManager.Instance.MostrarInteraccion("Pulsa [CLICK IZQ] para pescar");
+        }
+        else
+        {
+            UIManager.Instance.OcultarInteraccion();
+        }
+    }
+
+    /// <summary>
+    /// Prepara el lanzamiento de la caña, bloquea controles y reproduce sonido.
+    /// </summary>
+    private void EmpezarLanzamiento()
+    {
+        if (FishManager.Instance == null || !FishManager.Instance.pecesCargados)
+            return;
+
+        puedeLanzar = false;
+        if (movimientoJugador != null)
+            movimientoJugador.movimientoBloqueado = true;
+        if (controlCamara != null)
+            controlCamara.rotacionBloqueada = true;
+
+        if (animadorCana != null)
+            animadorCana.SetTrigger("Lanzar");
+        if (SoundManager.Instance != null)
+            SoundManager.Instance.SFX_Lanzar();
+
+        esperandoPez = true;
+        ActualizarTextosUI();
+
+        cronometroEspera = StartCoroutine(RutinaEsperarPez());
+    }
+
+    /// <summary>
+    /// Gestiona el tiempo aleatorio que tarda un pez en picar el anzuelo.
+    /// </summary>
+    private IEnumerator RutinaEsperarPez()
+    {
+        yield return new WaitForSeconds(Random.Range(2f, 5f));
+        EmpezarMinijuego();
+    }
+
+    /// <summary>
+    /// Activa el panel de minijuego, selecciona el pez e inicia el sonido del carrete.
+    /// </summary>
+    private void EmpezarMinijuego()
+    {
+        esperandoPez = false;
+        enMinijuego = true;
+        ActualizarTextosUI();
+
+        if (animadorCana != null)
+            animadorCana.SetTrigger("Picar");
+        if (SoundManager.Instance != null)
+            SoundManager.Instance.SFX_EmpezarForcejeo();
+
+        panelMinijuego.SetActive(true);
+        barraProgreso.gameObject.SetActive(true);
+
+        pezActualEnJuego = ElegirPezDefinitivo();
+        ConfigurarDificultadDinamica(pezActualEnJuego);
+
+        if (iconoPez.GetComponent<Image>() != null && iconoIncognita != null)
+        {
+            iconoPez.GetComponent<Image>().sprite = iconoIncognita;
+        }
+
+        posBarra = 0.1f;
+        posPez = 0.5f;
+        progreso = 0.15f;
+    }
+
+    /// <summary>
+    /// Determina el pez a pescar, dando prioridad a las misiones activas de los NPCs.
+    /// </summary>
+    private ItemData ElegirPezDefinitivo()
+    {
+        if (Random.Range(0f, 100f) <= probabilidadPezMision)
+        {
+            ItemData pezMision = BuscarPezRequeridoPorGatos();
+            if (pezMision != null)
+                return pezMision;
+        }
+        return ElegirPezPorCaña();
+    }
+
+    /// <summary>
+    /// Escanea la isla en busca de gatos y extrae aleatoriamente el ID de un pez deseado.
+    /// </summary>
+    private ItemData BuscarPezRequeridoPorGatos()
+    {
+        GatoNPC[] gatosEnIsla = FindObjectsByType<GatoNPC>(FindObjectsSortMode.None);
+        List<string> idsBuscados = new List<string>();
+
+        foreach (GatoNPC gato in gatosEnIsla)
+        {
+            if (!string.IsNullOrEmpty(gato.idPezDeseado))
+                idsBuscados.Add(gato.idPezDeseado);
+        }
+
+        if (idsBuscados.Count == 0)
+            return null;
+
+        string idElegido = idsBuscados[Random.Range(0, idsBuscados.Count)];
+        foreach (ItemData pez in FishManager.Instance.todosLosPeces)
+        {
+            if (pez.ID == idElegido)
+                return pez;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Ajusta las probabilidades de aparición de peces basándose en la rareza de la caña equipada.
+    /// </summary>
+    private ItemData ElegirPezPorCaña()
+    {
+        ItemData canaActual = InventorySystem.Instance.ObtenerItemEnMano();
+        Rareza rarezaCana = canaActual != null ? canaActual.rareza : Rareza.Comun;
+
+        float dado = Random.Range(0f, 100f);
+        Rareza rarezaBuscada = Rareza.Comun;
+
+        switch (rarezaCana)
+        {
+            case Rareza.Comun:
+                if (dado > 99)
+                    rarezaBuscada = Rareza.Legendario;
+                else if (dado > 95)
+                    rarezaBuscada = Rareza.Epico;
+                else if (dado > 85)
+                    rarezaBuscada = Rareza.Especial;
+                else if (dado > 60)
+                    rarezaBuscada = Rareza.Raro;
+                break;
+            case Rareza.Raro:
+                if (dado > 96)
+                    rarezaBuscada = Rareza.Legendario;
+                else if (dado > 85)
+                    rarezaBuscada = Rareza.Epico;
+                else if (dado > 65)
+                    rarezaBuscada = Rareza.Especial;
+                else if (dado > 40)
+                    rarezaBuscada = Rareza.Raro;
+                break;
+            case Rareza.Epico:
+                if (dado > 90)
+                    rarezaBuscada = Rareza.Legendario;
+                else if (dado > 70)
+                    rarezaBuscada = Rareza.Epico;
+                else if (dado > 45)
+                    rarezaBuscada = Rareza.Especial;
+                else if (dado > 20)
+                    rarezaBuscada = Rareza.Raro;
+                break;
+            case Rareza.Legendario:
+                if (dado > 75)
+                    rarezaBuscada = Rareza.Legendario;
+                else if (dado > 50)
+                    rarezaBuscada = Rareza.Epico;
+                else if (dado > 25)
+                    rarezaBuscada = Rareza.Especial;
+                else if (dado > 10)
+                    rarezaBuscada = Rareza.Raro;
+                break;
+        }
+
+        List<ItemData> candidatos = new List<ItemData>();
+        foreach (var pez in FishManager.Instance.todosLosPeces)
+        {
+            if (pez.rareza == rarezaBuscada)
+                candidatos.Add(pez);
+        }
+
+        if (candidatos.Count > 0)
+            return candidatos[Random.Range(0, candidatos.Count)];
+        return FishManager.Instance.todosLosPeces[
+            Random.Range(0, FishManager.Instance.todosLosPeces.Count)
+        ];
+    }
+
+    /// <summary>
+    /// Calcula la dificultad evaluando la diferencia de nivel y aplicando el bufo de la Iglesia.
+    /// </summary>
+    private void ConfigurarDificultadDinamica(ItemData pez)
+    {
+        if (pez == null)
+            return;
+
+        ItemData canaActual = InventorySystem.Instance.ObtenerItemEnMano();
+        int nivelCana = canaActual != null ? (int)canaActual.rareza : 0;
+        int nivelPez = (int)pez.rareza;
+
+        int diferencia = nivelPez - nivelCana;
+
+        velocidadPezActual = 0.5f + (diferencia * 0.3f);
+        tamanoBarraActual = 0.3f - (diferencia * 0.05f);
+
+        if (GameManager.Instance != null)
+            velocidadPezActual += GameManager.Instance.bufoReduccionDificultad;
+
+        velocidadPezActual = Mathf.Clamp(velocidadPezActual, 0.2f, 2.5f);
+        tamanoBarraActual = Mathf.Clamp(tamanoBarraActual, 0.08f, 0.5f);
+
+        barraVerde.sizeDelta = new Vector2(
+            barraVerde.sizeDelta.x,
+            tamanoBarraActual * alturaContenedor
+        );
+    }
+
+    /// <summary>
+    /// Gestiona la lógica de movimiento de las barras y la progresión de victoria.
+    /// </summary>
+    private void ControlarMinijuego()
+    {
+        tiempoPez += Time.deltaTime * velocidadPezActual;
+        posPez = Mathf.PerlinNoise(tiempoPez, 0f);
+
+        if (Mouse.current.leftButton.isPressed)
+            posBarra += velocidadSubidaBarra * Time.deltaTime;
+        else
+            posBarra -= gravedadBarra * Time.deltaTime;
+
+        posBarra = Mathf.Clamp(posBarra, 0f, 1f);
+        barraVerde.anchoredPosition = new Vector2(0, posBarra * alturaContenedor);
+        iconoPez.anchoredPosition = new Vector2(0, posPez * alturaContenedor);
+
+        float diferencia = Mathf.Abs(posBarra - posPez);
+        bool dentroDeZona = diferencia < (tamanoBarraActual / 2f);
+        iconoPez.GetComponent<Image>().color = dentroDeZona ? Color.green : Color.white;
+
+        if (dentroDeZona)
+            progreso += velocidadProgreso * Time.deltaTime;
+        else
+            progreso -= (velocidadProgreso * 0.2f) * Time.deltaTime;
+
+        progreso = Mathf.Clamp(progreso, 0f, 1f);
+        barraProgreso.value = progreso;
+
+        ActualizarColorBarra();
+
+        if (progreso >= 1f)
+            GanarPesca();
+        else if (progreso <= 0f)
+            PerderPesca();
+    }
+
+    /// <summary>
+    /// Interpola colores para reflejar visualmente el progreso de la pesca.
+    /// </summary>
+    private void ActualizarColorBarra()
+    {
+        if (imagenRelleno == null)
+            return;
+        if (progreso < 0.5f)
+            imagenRelleno.color = Color.Lerp(Color.red, Color.yellow, progreso * 2f);
+        else
+            imagenRelleno.color = Color.Lerp(Color.yellow, Color.green, (progreso - 0.5f) * 2f);
+    }
+
+    /// <summary>
+    /// Finaliza el minijuego con éxito, registra en la colección y reproduce sonido de ganar.
+    /// </summary>
+    private void GanarPesca()
+    {
+        TerminarMinijuego();
+        if (animadorCana != null)
+            animadorCana.SetTrigger("Recoger");
+        if (SoundManager.Instance != null)
+            SoundManager.Instance.SFX_Ganar();
+
+        if (InventorySystem.Instance != null && pezActualEnJuego != null)
+        {
+            InventorySystem.Instance.AnadirObjeto(pezActualEnJuego);
+            GameManager.Instance.RegistrarPezCapturado(pezActualEnJuego.ID);
+
+            if (
+                GameManager.Instance != null
+                && Random.Range(0f, 1f) <= GameManager.Instance.bufoProbabilidadDoble
+            )
+            {
+                InventorySystem.Instance.AnadirObjeto(pezActualEnJuego);
+                GameManager.Instance.RegistrarPezCapturado(pezActualEnJuego.ID);
+                if (UIManager.Instance != null)
+                    UIManager.Instance.MostrarTooltipTemporal("¡MILAGRO! ¡Captura Doble!", 3f);
+            }
+        }
+        Invoke("ResetearSistema", 2f);
+    }
+
+    /// <summary>
+    /// Finaliza el minijuego con fallo y reproduce sonido de perder.
+    /// </summary>
+    private void PerderPesca()
+    {
+        TerminarMinijuego();
+        if (animadorCana != null)
+            animadorCana.SetTrigger("Recoger");
+        if (SoundManager.Instance != null)
+            SoundManager.Instance.SFX_Perder();
+        Invoke("ResetearSistema", 1f);
+    }
+
+    /// <summary>
+    /// Cancela abruptamente la pesca, parando los sonidos en curso.
+    /// </summary>
+    private void CancelarPesca()
+    {
+        if (cronometroEspera != null)
+            StopCoroutine(cronometroEspera);
+        esperandoPez = false;
+
+        if (animadorCana != null)
+            animadorCana.SetTrigger("Recoger");
+        if (SoundManager.Instance != null)
+            SoundManager.Instance.SFX_PararForcejeo();
+        Invoke("ResetearSistema", 1f);
+    }
+
+    /// <summary>
+    /// Oculta la interfaz gráfica del minijuego.
+    /// </summary>
+    private void TerminarMinijuego()
+    {
+        enMinijuego = false;
+        panelMinijuego.SetActive(false);
+        barraProgreso.gameObject.SetActive(false);
+    }
+
+    /// <summary>
+    /// Libera los controles del jugador y restaura los avisos de la UI según la posición.
+    /// </summary>
+    private void ResetearSistema()
+    {
+        puedeLanzar = true;
+        esperandoPez = false;
+        enMinijuego = false;
+
+        if (movimientoJugador != null)
+            movimientoJugador.movimientoBloqueado = false;
+        if (controlCamara != null)
+            controlCamara.rotacionBloqueada = false;
+
+        ActualizarTextosUI();
+    }
+}
+
+
+// ==========================================
+// ARCHIVO: PlayerMovement.cs
+// ==========================================
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+/// <summary>
+/// Controla el movimiento físico del jugador, aplicando suavizado y gestionando el sonido de los pasos.
+/// </summary>
+[RequireComponent(typeof(CharacterController))]
+public class PlayerMovement : MonoBehaviour
+{
+    [Header("Velocidades")]
+    public float velocidadCaminar = 6f;
+    public float velocidadCorrer = 10f;
+
+    [Header("Suavizado de Movimiento")]
+    [Range(0.01f, 0.5f)]
+    public float tiempoAceleracion = 0.1f;
+
+    [Header("Audio Pasos")]
+    public float frecuenciaPasosCaminar = 0.5f;
+    public float frecuenciaPasosCorrer = 0.3f;
+
+    [HideInInspector]
+    public bool movimientoBloqueado = false;
+
+    private CharacterController controller;
+    private float cronometroPasos = 0f;
+    private Vector2 movimientoActual;
+    private Vector2 velocidadMovimientoSuavizado;
+
+    void Start()
+    {
+        controller = GetComponent<CharacterController>();
+    }
+
+    void Update()
+    {
+        if (movimientoBloqueado)
+            return;
+
+        ProcesarMovimiento();
+        ProcesarAudioPasos();
+    }
+
+    /// <summary>
+    /// Calcula el vector de dirección basado en el teclado y mueve al CharacterController.
+    /// </summary>
+    private void ProcesarMovimiento()
+    {
+        Vector2 movimientoObjetivo = Vector2.zero;
+
+        if (Keyboard.current != null)
+        {
+            if (Keyboard.current.wKey.isPressed)
+                movimientoObjetivo.y += 1;
+            if (Keyboard.current.sKey.isPressed)
+                movimientoObjetivo.y -= 1;
+            if (Keyboard.current.aKey.isPressed)
+                movimientoObjetivo.x -= 1;
+            if (Keyboard.current.dKey.isPressed)
+                movimientoObjetivo.x += 1;
+        }
+
+        if (movimientoObjetivo.magnitude > 1f)
+        {
+            movimientoObjetivo.Normalize();
+        }
+
+        movimientoActual = Vector2.SmoothDamp(
+            movimientoActual,
+            movimientoObjetivo,
+            ref velocidadMovimientoSuavizado,
+            tiempoAceleracion
+        );
+
+        bool estaCorriendo =
+            Keyboard.current.leftShiftKey.isPressed && movimientoActual.magnitude > 0.1f;
+        float velocidadActual = estaCorriendo ? velocidadCorrer : velocidadCaminar;
+
+        Vector3 mover =
+            transform.right * movimientoActual.x + transform.forward * movimientoActual.y;
+        mover.y = -9.8f;
+
+        controller.Move(mover * velocidadActual * Time.deltaTime);
+    }
+
+    /// <summary>
+    /// Gestiona los intervalos de tiempo para reproducir efectos de sonido al caminar o correr.
+    /// </summary>
+    private void ProcesarAudioPasos()
+    {
+        bool estaCorriendo = Keyboard.current.leftShiftKey.isPressed;
+
+        if (controller.velocity.magnitude > 0.1f && movimientoActual.magnitude > 0.1f)
+        {
+            float tiempoEntrePasos = estaCorriendo ? frecuenciaPasosCorrer : frecuenciaPasosCaminar;
+            cronometroPasos += Time.deltaTime;
+
+            if (cronometroPasos >= tiempoEntrePasos)
+            {
+                if (SoundManager.Instance != null)
+                    SoundManager.Instance.ReproducirPaso();
+                cronometroPasos = 0f;
+            }
+        }
+        else
+        {
+            cronometroPasos = 0f;
+        }
+    }
+}
+
+
+// ==========================================
+// ARCHIVO: ServiceData.cs
+// ==========================================
+using UnityEngine;
+
+/// <summary>
+/// Contenedor de datos para los servicios consumibles (Taberna) y bendiciones (Iglesia).
+/// </summary>
+public class ServiceData : ScriptableObject
+{
+    [Header("Identificación")]
+    public string ID;
+    public string nombreDisplay;
+    public string tipo;
+
+    [Header("Datos Visuales")]
+    [TextArea(3, 5)]
+    public string descripcion;
+    public Sprite icono;
+
+    [Header("Efectos Mecánicos")]
+    public string objetivoEfecto;
+    public float valorEfecto;
+
+    [Header("Economía")]
+    public int precioBase;
+}
+
+
+// ==========================================
+// ARCHIVO: SettingsManager.cs
+// ==========================================
+using System;
+using System.Collections.Generic;
+using Firebase.Auth;
+using Firebase.Extensions;
+using Firebase.Firestore;
+using TMPro;
+using UnityEngine;
+using UnityEngine.UI;
+
+/// <summary>
+/// Gestiona la configuración del usuario, su persistencia en Firestore y la aplicación
+/// de los ajustes a los sistemas de audio, control y gráficos del juego.
+/// </summary>
+public class SettingsManager : MonoBehaviour
+{
+    [Header("Audio UI")]
+    public Slider masterSlider;
+    public Slider musicSlider;
+    public Slider sfxSlider;
+
+    [Header("Controles UI")]
+    public Slider mouseSensSlider;
+    public Toggle invertYToggle;
+
+    [Header("Gráficos UI")]
+    public Toggle fullscreenToggle;
+    public TMP_Dropdown graphicsDropdown;
+
+    [Header("Paneles")]
+    public GameObject settingsPanel;
+    public GameObject mainMenuPanel;
+
+    private FirebaseFirestore db;
+    private FirebaseAuth auth;
+
+    private void Start()
+    {
+        db = FirebaseFirestore.DefaultInstance;
+        auth = FirebaseAuth.DefaultInstance;
+
+        if (auth.CurrentUser != null)
+        {
+            LoadSettingsFromDatabase();
+        }
+    }
+
+    /// <summary>
+    /// Abre el panel de opciones ocultando el menú principal o de pausa si existen.
+    /// </summary>
+    public void OpenSettingsPanel()
+    {
+        if (mainMenuPanel != null)
+            mainMenuPanel.SetActive(false);
+        if (UIManager.Instance != null && UIManager.Instance.panelPausa != null)
+            if (settingsPanel != null)
+                settingsPanel.SetActive(true);
+
+        LoadSettingsFromDatabase();
+    }
+
+    /// <summary>
+    /// Guarda los ajustes, cierra el panel y vuelve al menú donde te encontrabas.
+    /// </summary>
+    public void CloseSettingsPanel()
+    {
+        SaveSettingsToDatabase();
+
+        if (settingsPanel != null)
+            settingsPanel.SetActive(false);
+
+        if (mainMenuPanel != null)
+            mainMenuPanel.SetActive(true);
+        else if (UIManager.Instance != null && UIManager.Instance.panelPausa != null)
+            UIManager.Instance.panelPausa.SetActive(true);
+    }
+
+    /// <summary>
+    /// Descarga la configuración de Firestore y la aplica a los sistemas del juego.
+    /// </summary>
+    public void LoadSettingsFromDatabase()
+    {
+        if (auth.CurrentUser == null)
+            return;
+
+        string uid = auth.CurrentUser.UserId;
+        db.Collection("users")
+            .Document(uid)
+            .GetSnapshotAsync()
+            .ContinueWithOnMainThread(task =>
+            {
+                if (task.IsCompleted && task.Result.Exists)
+                {
+                    Dictionary<string, object> settings = task.Result.GetValue<
+                        Dictionary<string, object>
+                    >("settings");
+
+                    if (settings != null)
+                    {
+                        UpdateUIValues(settings);
+                        ApplySettingsToGame();
+                    }
+                }
+            });
+    }
+
+    /// <summary>
+    /// Actualiza los elementos visuales con los datos descargados.
+    /// </summary>
+    private void UpdateUIValues(Dictionary<string, object> settings)
+    {
+        if (settings.ContainsKey("master_volume"))
+            masterSlider.value = Convert.ToSingle(settings["master_volume"]);
+        if (settings.ContainsKey("music_volume"))
+            musicSlider.value = Convert.ToSingle(settings["music_volume"]);
+        if (settings.ContainsKey("sfx_volume"))
+            sfxSlider.value = Convert.ToSingle(settings["sfx_volume"]);
+        if (settings.ContainsKey("mouse_sens"))
+            mouseSensSlider.value = Convert.ToSingle(settings["mouse_sens"]);
+        if (settings.ContainsKey("invert_y"))
+            invertYToggle.isOn = Convert.ToBoolean(settings["invert_y"]);
+        if (settings.ContainsKey("fullscreen"))
+            fullscreenToggle.isOn = Convert.ToBoolean(settings["fullscreen"]);
+        if (settings.ContainsKey("graphics_quality"))
+            graphicsDropdown.value = Convert.ToInt32(settings["graphics_quality"]);
+    }
+
+    /// <summary>
+    /// Conecta los valores de la configuración con los motores de Unity y otros Managers.
+    /// </summary>
+    public void ApplySettingsToGame()
+    {
+        if (SoundManager.Instance != null)
+        {
+            SoundManager.Instance.volumenMusica = musicSlider.value * 0.01f;
+            SoundManager.Instance.volumenEfectos = sfxSlider.value * 0.01f;
+        }
+
+        CamaraMovement cam =
+            Camera.main != null ? Camera.main.GetComponent<CamaraMovement>() : null;
+        if (cam != null)
+        {
+            cam.velocidad = mouseSensSlider.value * 10f;
+        }
+
+        QualitySettings.SetQualityLevel(graphicsDropdown.value);
+        Screen.fullScreen = fullscreenToggle.isOn;
+    }
+
+    /// <summary>
+    /// Sincroniza los valores actuales de la UI con la base de datos en la nube.
+    /// </summary>
+    private void SaveSettingsToDatabase()
+    {
+        if (auth.CurrentUser == null)
+            return;
+
+        Dictionary<string, object> updatedSettings = new Dictionary<string, object>
+        {
+            { "master_volume", masterSlider.value },
+            { "music_volume", musicSlider.value },
+            { "sfx_volume", sfxSlider.value },
+            { "mouse_sens", mouseSensSlider.value },
+            { "invert_y", invertYToggle.isOn },
+            { "fullscreen", fullscreenToggle.isOn },
+            { "graphics_quality", graphicsDropdown.value },
+        };
+
+        db.Collection("users")
+            .Document(auth.CurrentUser.UserId)
+            .UpdateAsync("settings", updatedSettings);
+        ApplySettingsToGame();
+    }
+}
+
+
+// ==========================================
+// ARCHIVO: SoundManager.cs
+// ==========================================
+using UnityEngine;
+using UnityEngine.SceneManagement;
+
+/// <summary>
+/// Gestiona la reproducción de música de fondo, ambiente marino y efectos de sonido generales.
+/// Implementa el patrón Singleton para persistir a lo largo de las distintas escenas del juego sin cortes.
+/// </summary>
+public class SoundManager : MonoBehaviour
+{
+    public static SoundManager Instance;
+
+    [Header("Mezclador de Volumen")]
+    [Range(0f, 1f)]
+    public float volumenMusica = 0.3f;
+
+    [Range(0f, 1f)]
+    public float volumenMar = 0.3f;
+
+    [Range(0f, 1f)]
+    public float volumenPasos = 0.5f;
+
+    [Range(0f, 1f)]
+    public float volumenEfectos = 1.0f;
+
+    [Range(0f, 1f)]
+    public float volumenCarrete = 0.6f;
+
+    [Header("Clips de Audio - Ambiente")]
+    public AudioClip musicaMenu;
+    public AudioClip musicaJuego;
+    public AudioClip sonidoMar;
+
+    [Header("Clips de Audio - Pasos")]
+    public AudioClip pasoA;
+    public AudioClip pasoB;
+
+    [Header("Clips de Audio - Pesca")]
+    public AudioClip sonidoLanzar;
+    public AudioClip sonidoPicarLoop;
+    public AudioClip sonidoCaptura;
+    public AudioClip sonidoPerder;
+
+    [Header("Clips de Audio - Interfaz y Economía")]
+    public AudioClip sonidoClickBoton;
+    public AudioClip sonidoComprar;
+    public AudioClip sonidoVender;
+    public AudioClip sonidoSubirNivel;
+
+    [Header("Clips de Audio - Gatos")]
+    public AudioClip sonidoGatoFeliz;
+    public AudioClip sonidoGatoEnfadado;
+
+    [Header("Clips de Audio - Edificios")]
+    public AudioClip sonidoConsumirTaberna;
+    public AudioClip sonidoRezarIglesia;
+
+    private AudioSource musicSource;
+    private AudioSource ambienceSource;
+    private AudioSource effectsSource;
+    private AudioSource sfxLoopSource;
+    private bool pasoAlternador = false;
+
+    void Awake()
+    {
+        if (Instance == null)
+        {
+            Instance = this;
+            DontDestroyOnLoad(gameObject);
+        }
+        else
+        {
+            Destroy(gameObject);
+            return;
+        }
+
+        musicSource = gameObject.AddComponent<AudioSource>();
+        ambienceSource = gameObject.AddComponent<AudioSource>();
+        effectsSource = gameObject.AddComponent<AudioSource>();
+        sfxLoopSource = gameObject.AddComponent<AudioSource>();
+
+        musicSource.loop = true;
+        ambienceSource.loop = true;
+        sfxLoopSource.loop = true;
+    }
+
+    /// <summary>
+    /// Detecta la escena actual al inicializarse para reproducir la música correcta de forma automática.
+    /// Útil si el desarrollador arranca el juego directamente desde la escena de la isla para hacer pruebas.
+    /// </summary>
+    void Start()
+    {
+        if (SceneManager.GetActiveScene().name == "Game")
+        {
+            ReproducirMusicaJuego();
+        }
+        else
+        {
+            ReproducirMusicaMenu();
+        }
+    }
+
+    void Update()
+    {
+        if (musicSource != null)
+            musicSource.volume = volumenMusica;
+        if (ambienceSource != null)
+            ambienceSource.volume = volumenMar;
+        if (sfxLoopSource != null)
+            sfxLoopSource.volume = volumenCarrete;
+    }
+
+    /// <summary>
+    /// Detiene el sonido ambiental del mar y reproduce la pista relajante de los menús.
+    /// </summary>
+    public void ReproducirMusicaMenu()
+    {
+        if (ambienceSource != null)
+            ambienceSource.Stop();
+
+        if (musicSource != null && musicaMenu != null)
+        {
+            musicSource.clip = musicaMenu;
+            musicSource.Play();
+        }
+    }
+
+    /// <summary>
+    /// Activa el sonido ambiental del mar y reproduce la pista de exploración de la isla.
+    /// </summary>
+    public void ReproducirMusicaJuego()
+    {
+        if (ambienceSource != null && sonidoMar != null)
+        {
+            ambienceSource.clip = sonidoMar;
+            ambienceSource.Play();
+        }
+
+        if (musicSource != null && musicaJuego != null)
+        {
+            musicSource.clip = musicaJuego;
+            musicSource.Play();
+        }
+    }
+
+    public void ReproducirPaso()
+    {
+        AudioClip clipAUsar = pasoAlternador ? pasoA : pasoB;
+        pasoAlternador = !pasoAlternador;
+
+        if (clipAUsar != null)
+        {
+            effectsSource.pitch = Random.Range(0.95f, 1.05f);
+            effectsSource.PlayOneShot(clipAUsar, volumenPasos);
+            effectsSource.pitch = 1.0f;
+        }
+    }
+
+    public void ReproducirSonidoPersonalizado(AudioClip clip)
+    {
+        if (clip != null)
+            effectsSource.PlayOneShot(clip, volumenEfectos);
+    }
+
+    // ==========================================
+    // MÉTODOS DE PESCA
+    // ==========================================
+    public void SFX_Lanzar()
+    {
+        if (sonidoLanzar != null)
+            effectsSource.PlayOneShot(sonidoLanzar, volumenEfectos);
+    }
+
+    public void SFX_EmpezarForcejeo()
+    {
+        if (sonidoPicarLoop != null)
+        {
+            sfxLoopSource.clip = sonidoPicarLoop;
+            sfxLoopSource.Play();
+        }
+    }
+
+    public void SFX_PararForcejeo()
+    {
+        sfxLoopSource.Stop();
+    }
+
+    public void SFX_Ganar()
+    {
+        SFX_PararForcejeo();
+        if (sonidoCaptura != null)
+            effectsSource.PlayOneShot(sonidoCaptura, volumenEfectos);
+    }
+
+    public void SFX_Perder()
+    {
+        SFX_PararForcejeo();
+        if (sonidoPerder != null)
+            effectsSource.PlayOneShot(sonidoPerder, volumenEfectos);
+    }
+
+    // ==========================================
+    // MÉTODOS DE UI Y ECONOMÍA
+    // ==========================================
+    public void ReproducirClick()
+    {
+        if (sonidoClickBoton != null)
+            effectsSource.PlayOneShot(sonidoClickBoton, volumenEfectos);
+    }
+
+    public void ReproducirComprar()
+    {
+        if (sonidoComprar != null)
+            effectsSource.PlayOneShot(sonidoComprar, volumenEfectos);
+    }
+
+    public void ReproducirVender()
+    {
+        if (sonidoVender != null)
+            effectsSource.PlayOneShot(sonidoVender, volumenEfectos);
+    }
+
+    public void ReproducirSubirNivel()
+    {
+        if (sonidoSubirNivel != null)
+            effectsSource.PlayOneShot(sonidoSubirNivel, volumenEfectos);
+    }
+
+    public void ReproducirConsumirTaberna()
+    {
+        if (sonidoConsumirTaberna != null)
+            effectsSource.PlayOneShot(sonidoConsumirTaberna, volumenEfectos);
+    }
+
+    public void ReproducirRezarIglesia()
+    {
+        if (sonidoRezarIglesia != null)
+            effectsSource.PlayOneShot(sonidoRezarIglesia, volumenEfectos);
+    }
+
+    // ==========================================
+    // MÉTODOS DE GATOS
+    // ==========================================
+    public void ReproducirGatoFeliz()
+    {
+        if (sonidoGatoFeliz != null)
+            effectsSource.PlayOneShot(sonidoGatoFeliz, volumenEfectos);
+    }
+
+    public void ReproducirGatoEnfadado()
+    {
+        if (sonidoGatoEnfadado != null)
+            effectsSource.PlayOneShot(sonidoGatoEnfadado, volumenEfectos);
+    }
+}
+
+
+// ==========================================
+// ARCHIVO: TavernManager.cs
+// ==========================================
+using System.Collections.Generic;
+using Firebase.Firestore;
+using TMPro;
+using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.UI;
+
+/// <summary>
+/// Gestiona la compra de consumibles en la taberna y la aplicación de sus bufos al GameManager.
+/// </summary>
+public class TavernManager : MonoBehaviour
+{
+    public static TavernManager Instance;
+
+    [Header("Paneles Principales")]
+    public GameObject panelTaberna;
+    public Transform contenedorServicios;
+    public GameObject prefabServicioSlot;
+
+    [Header("Panel de Previsualización")]
+    public Image imagenPreview;
+    public TextMeshProUGUI textoNombre;
+    public TextMeshProUGUI textoDescripcion;
+    public TextMeshProUGUI textoPrecio;
+
+    [Header("Botones de Acción")]
+    public Button botonComprar;
+    public Button botonCerrar;
+
+    public bool tabernaAbierta { get; private set; }
+    private ServiceData servicioSeleccionado;
+    private bool catalogoCargado = false;
+
+    void Awake()
+    {
+        if (Instance == null)
+            Instance = this;
+        else
+            Destroy(gameObject);
+    }
+
+    void Start()
+    {
+        if (panelTaberna != null)
+            panelTaberna.SetActive(false);
+        if (botonComprar != null)
+            botonComprar.onClick.AddListener(ComprarServicio);
+        if (botonCerrar != null)
+            botonCerrar.onClick.AddListener(CerrarTaberna);
+        CargarServicios();
+    }
+
+    void Update()
+    {
+        if (tabernaAbierta && Keyboard.current.escapeKey.wasPressedThisFrame)
+        {
+            CerrarTaberna();
+        }
+    }
+
+    /// <summary>
+    /// Se conecta a Firestore, filtra los servicios de tipo 'buff' y los instancia en la UI.
+    /// </summary>
+    private async void CargarServicios()
+    {
+        if (catalogoCargado)
+            return;
+        FirebaseFirestore db = FirebaseFirestore.DefaultInstance;
+
+        try
+        {
+            QuerySnapshot snapshot = await db.Collection("services")
+                .WhereEqualTo("type", "buff")
+                .GetSnapshotAsync();
+
+            foreach (DocumentSnapshot doc in snapshot.Documents)
+            {
+                Dictionary<string, object> dict = doc.ToDictionary();
+                ServiceData serv = ScriptableObject.CreateInstance<ServiceData>();
+
+                serv.ID = doc.Id;
+                if (dict.ContainsKey("name"))
+                    serv.nombreDisplay = dict["name"].ToString();
+                if (dict.ContainsKey("description"))
+                    serv.descripcion = dict["description"].ToString();
+                if (dict.ContainsKey("effect_target"))
+                    serv.objetivoEfecto = dict["effect_target"].ToString();
+                if (dict.ContainsKey("effect_value"))
+                    serv.valorEfecto = System.Convert.ToSingle(dict["effect_value"]);
+                if (dict.ContainsKey("price"))
+                    serv.precioBase = System.Convert.ToInt32(dict["price"]);
+
+                serv.icono = Resources.Load<Sprite>("ServiceIcons/" + serv.ID);
+
+                GameObject slotGO = Instantiate(prefabServicioSlot, contenedorServicios);
+                slotGO.transform.localScale = Vector3.one;
+
+                ServiceSlot slotScript = slotGO.GetComponent<ServiceSlot>();
+                if (slotScript != null)
+                {
+                    slotScript.ConfigurarSlot(serv);
+                }
+            }
+            catalogoCargado = true;
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError("Error Taberna: " + e.Message);
+        }
+    }
+
+    public void AbrirTaberna()
+    {
+        tabernaAbierta = true;
+        panelTaberna.SetActive(true);
+        BloquearControles(true);
+        LimpiarPreview();
+    }
+
+    public void CerrarTaberna()
+    {
+        tabernaAbierta = false;
+        panelTaberna.SetActive(false);
+        BloquearControles(false);
+    }
+
+    public void SeleccionarServicio(ServiceData servicio)
+    {
+        servicioSeleccionado = servicio;
+        imagenPreview.sprite = servicio.icono;
+        imagenPreview.color = Color.white;
+        textoNombre.text = servicio.nombreDisplay;
+        textoDescripcion.text = servicio.descripcion;
+        textoPrecio.text = servicio.precioBase.ToString();
+        if (botonComprar != null)
+            botonComprar.interactable = true;
+    }
+
+    private void LimpiarPreview()
+    {
+        servicioSeleccionado = null;
+        if (imagenPreview != null)
+        {
+            imagenPreview.sprite = null;
+            imagenPreview.color = new Color(1, 1, 1, 0);
+        }
+        if (textoNombre != null)
+            textoNombre.text = "Selecciona un consumible";
+        if (textoDescripcion != null)
+            textoDescripcion.text = "";
+        if (textoPrecio != null)
+            textoPrecio.text = "";
+        if (botonComprar != null)
+            botonComprar.interactable = false;
+    }
+
+    /// <summary>
+    /// Verifica los fondos, resta el coste, aplica el modificador y reproduce el sonido de consumir.
+    /// </summary>
+    private void ComprarServicio()
+    {
+        if (
+            servicioSeleccionado != null
+            && GameManager.Instance.ObtenerDinero() >= servicioSeleccionado.precioBase
+        )
+        {
+            GameManager.Instance.AnadirDinero(-servicioSeleccionado.precioBase);
+            GameManager.Instance.ActivarServicio(servicioSeleccionado);
+
+            if (SoundManager.Instance != null)
+                SoundManager.Instance.ReproducirConsumirTaberna();
+            if (UIManager.Instance != null)
+                UIManager.Instance.MostrarTooltipTemporal(
+                    $"¡{servicioSeleccionado.nombreDisplay} activado!",
+                    3f
+                );
+        }
+    }
+
+    private void BloquearControles(bool estado)
+    {
+        CamaraMovement cam = FindFirstObjectByType<CamaraMovement>();
+        PlayerMovement mov = FindFirstObjectByType<PlayerMovement>();
+
+        if (cam != null)
+        {
+            cam.rotacionBloqueada = estado;
+            if (estado)
+                cam.DesbloquearCursor();
+            else
+                cam.BloquearCursor();
+        }
+
+        if (mov != null)
+            mov.movimientoBloqueado = estado;
+    }
+}
+
+
+// ==========================================
+// ARCHIVO: TavernSlot.cs
+// ==========================================
+using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.UI;
+
+/// <summary>
+/// Representa un servicio o consumible a la venta dentro de la interfaz de la Taberna.
+/// Gestiona la comunicación con el TavernManager y los tooltips visuales.
+/// </summary>
+public class ServiceSlot
+    : MonoBehaviour,
+        IPointerClickHandler,
+        IPointerEnterHandler,
+        IPointerExitHandler
+{
+    [Header("Componentes Visuales")]
+    public Image iconoServicio;
+
+    private ServiceData datosServicio;
+
+    /// <summary>
+    /// Asigna la información del consumible a esta casilla y activa visualmente su icono.
+    /// </summary>
+    public void ConfigurarSlot(ServiceData servicio)
+    {
+        datosServicio = servicio;
+        if (iconoServicio != null && servicio != null)
+        {
+            iconoServicio.sprite = servicio.icono;
+            iconoServicio.color = Color.white;
+        }
+    }
+
+    /// <summary>
+    /// Notifica al gestor de la taberna que el jugador ha seleccionado este consumible.
+    /// </summary>
+    public void OnPointerClick(PointerEventData eventData)
+    {
+        if (datosServicio != null && TavernManager.Instance != null)
+        {
+            TavernManager.Instance.SeleccionarServicio(datosServicio);
+        }
+    }
+
+    /// <summary>
+    /// Extrae la información del consumible y solicita al UIManager que la muestre temporalmente.
+    /// </summary>
+    public void OnPointerEnter(PointerEventData eventData)
+    {
+        if (datosServicio != null && UIManager.Instance != null)
+        {
+            string textoInfo = $"{datosServicio.nombreDisplay} \n<size=70%>Consumible</size>";
+            UIManager.Instance.MostrarTooltipTemporal(textoInfo, 1.5f);
+        }
+    }
+
+    /// <summary>
+    /// Oculta el tooltip de información al retirar el ratón de la casilla.
+    /// </summary>
+    public void OnPointerExit(PointerEventData eventData)
+    {
+        if (UIManager.Instance != null)
+            UIManager.Instance.OcultarTooltip();
+    }
+}
+
+
+// ==========================================
+// ARCHIVO: UIManager.cs
+// ==========================================
+using TMPro;
+using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.SceneManagement;
+using UnityEngine.UI;
+
+/// <summary>
+/// Gestor global de la interfaz de usuario.
+/// Controla el menú de pausa, los diálogos, barras de progresión y evita la superposición de interfaces.
+/// </summary>
+public class UIManager : MonoBehaviour
+{
+    public static UIManager Instance;
+
+    [Header("Sistema de Diálogos")]
+    public GameObject panelDialogo;
+    public TextMeshProUGUI textoDialogo;
+
+    [Header("Progresión Afinidad (En Diálogo)")]
+    public GameObject panelBarraAfinidad;
+    public Slider barraAfinidad;
+    public TextMeshProUGUI textoNivelAfinidad;
+
+    [Header("Textos Directos")]
+    public TextMeshProUGUI textoInteraccion;
+    public TextMeshProUGUI textoTooltip;
+
+    [Header("Menú de Pausa")]
+    public GameObject panelPausa;
+    public Button botonMenuPrincipal;
+    public Button botonSalir;
+    public string nombreEscenaMenu = "MainMenu";
+
+    [HideInInspector]
+    public bool pausaAbierta = false;
+
+    private bool interaccionConsumida = false;
+
+    void Awake()
+    {
+        Instance = this;
+
+        if (panelDialogo)
+            panelDialogo.SetActive(false);
+        if (panelBarraAfinidad)
+            panelBarraAfinidad.SetActive(false);
+        if (textoInteraccion)
+            textoInteraccion.gameObject.SetActive(false);
+        if (textoTooltip)
+            textoTooltip.gameObject.SetActive(false);
+        if (panelPausa)
+            panelPausa.SetActive(false);
+    }
+
+    void Start()
+    {
+        if (botonMenuPrincipal)
+            botonMenuPrincipal.onClick.AddListener(IrMenuPrincipal);
+        if (botonSalir)
+            botonSalir.onClick.AddListener(TogglePausa);
+    }
+
+    void Update()
+    {
+        interaccionConsumida = false;
+
+        if (Keyboard.current.escapeKey.wasPressedThisFrame)
+        {
+            if (!HayAlgunaInterfazSecundariaAbierta())
+            {
+                TogglePausa();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Actúa como semáforo. Si una interacción ocurre, bloquea al resto de elementos en el mismo frame.
+    /// </summary>
+    public bool ConsumirInteraccion()
+    {
+        if (interaccionConsumida || HayAlgunaInterfazSecundariaAbierta() || pausaAbierta)
+            return false;
+
+        interaccionConsumida = true;
+        return true;
+    }
+
+    /// <summary>
+    /// Rastrea todos los mánagers para saber si hay algún panel ocupando la pantalla.
+    /// </summary>
+    public bool HayAlgunaInterfazSecundariaAbierta()
+    {
+        bool mercado = MarketManager.Instance != null && MarketManager.Instance.mercadoAbierto;
+        bool taberna = TavernManager.Instance != null && TavernManager.Instance.tabernaAbierta;
+        bool iglesia = ChurchManager.Instance != null && ChurchManager.Instance.iglesiaAbierta;
+        bool coleccion =
+            CollectionManager.Instance != null && CollectionManager.Instance.coleccionAbierta;
+        bool mochila = InventorySystem.Instance != null && InventorySystem.Instance.mochilaAbierta;
+        bool dialogo = panelDialogo != null && panelDialogo.activeSelf;
+
+        SettingsManager sm = FindFirstObjectByType<SettingsManager>();
+        bool settings = sm != null && sm.settingsPanel != null && sm.settingsPanel.activeSelf;
+
+        return mercado || taberna || iglesia || coleccion || mochila || dialogo || settings;
+    }
+
+    /// <summary>
+    /// Abre o cierra el menú de pausa congelando el tiempo y los controles del jugador.
+    /// </summary>
+    private void TogglePausa()
+    {
+        pausaAbierta = !pausaAbierta;
+        if (panelPausa != null)
+            panelPausa.SetActive(pausaAbierta);
+
+        CamaraMovement cam = FindFirstObjectByType<CamaraMovement>();
+        PlayerMovement mov = FindFirstObjectByType<PlayerMovement>();
+
+        if (pausaAbierta)
+        {
+            Time.timeScale = 0f;
+            if (cam != null)
+            {
+                cam.rotacionBloqueada = true;
+                cam.DesbloquearCursor();
+            }
+            if (mov != null)
+                mov.movimientoBloqueado = true;
+        }
+        else
+        {
+            Time.timeScale = 1f;
+            if (cam != null)
+            {
+                cam.rotacionBloqueada = false;
+                cam.BloquearCursor();
+            }
+            if (mov != null)
+                mov.movimientoBloqueado = false;
+        }
+    }
+
+    /// <summary>
+    /// Restaura el tiempo, cambia la música y carga la escena inicial.
+    /// </summary>
+    private void IrMenuPrincipal()
+    {
+        Time.timeScale = 1f;
+        if (SoundManager.Instance != null)
+            SoundManager.Instance.ReproducirMusicaMenu();
+        SceneManager.LoadScene(nombreEscenaMenu);
+    }
+
+    public void MostrarBocadillo(string frase)
+    {
+        if (panelDialogo)
+            panelDialogo.SetActive(true);
+        if (textoDialogo)
+            textoDialogo.text = frase;
+    }
+
+    public void OcultarBocadillo()
+    {
+        if (panelDialogo)
+            panelDialogo.SetActive(false);
+        if (panelBarraAfinidad)
+            panelBarraAfinidad.SetActive(false);
+    }
+
+    public void MostrarAfinidadGato(int nivel, int xpActual, int xpNecesaria)
+    {
+        if (panelBarraAfinidad)
+            panelBarraAfinidad.SetActive(true);
+        if (textoNivelAfinidad)
+            textoNivelAfinidad.text = $"Afinidad {nivel} | XP {xpActual}/{xpNecesaria}";
+        if (barraAfinidad)
+        {
+            barraAfinidad.maxValue = xpNecesaria;
+            barraAfinidad.value = xpActual;
+        }
+    }
+
+    public void MostrarInteraccion(string mensaje)
+    {
+        if (textoInteraccion)
+        {
+            textoInteraccion.gameObject.SetActive(true);
+            textoInteraccion.text = mensaje;
+        }
+    }
+
+    public void OcultarInteraccion()
+    {
+        if (textoInteraccion)
+            textoInteraccion.gameObject.SetActive(false);
+    }
+
+    public void MostrarTooltip(string mensaje)
+    {
+        if (textoTooltip)
+        {
+            CancelInvoke("OcultarTooltip");
+            textoTooltip.gameObject.SetActive(true);
+            textoTooltip.text = mensaje;
+        }
+    }
+
+    public void MostrarTooltipTemporal(string mensaje, float tiempo)
+    {
+        MostrarTooltip(mensaje);
+        Invoke("OcultarTooltip", tiempo);
+    }
+
+    public void OcultarTooltip()
+    {
+        if (textoTooltip)
+            textoTooltip.gameObject.SetActive(false);
+    }
+
+    public void MostrarSubidaNivelGlobal(int nivel)
+    {
+        MostrarTooltipTemporal($"¡NIVEL AUMENTADO A {nivel}!", 4f);
+    }
+}
+
+
+// ==========================================
+// ARCHIVO: ZonaPesca.cs
+// ==========================================
+using UnityEngine;
+
+/// <summary>
+/// Detecta si el jugador entra o sale de una masa de agua y notifica al controlador de pesca.
+/// </summary>
+public class ZonaPesca : MonoBehaviour
+{
+    private void OnTriggerEnter(Collider other)
+    {
+        if (other.CompareTag("Player"))
+        {
+            PescaController caña = other.GetComponentInChildren<PescaController>(true);
+            if (caña != null)
+            {
+                caña.EstablecerZonaDePesca(true);
+            }
+        }
+    }
+
+    private void OnTriggerExit(Collider other)
+    {
+        if (other.CompareTag("Player"))
+        {
+            PescaController caña = other.GetComponentInChildren<PescaController>(true);
+            if (caña != null)
+            {
+                caña.EstablecerZonaDePesca(false);
+            }
+        }
+    }
+}
+
+

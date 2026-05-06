@@ -194,7 +194,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GatoNPC
   idGatoDB: cat_doraemon
   idPezDeseado: fish_future_carp
-  nivelAfinidad: 1
+  nombreGato: Gato
+  recompensaExperiencia: 25
+  recompensaMonedas: 10
+  tiempoPaciencia: 300
+  maullidoPersonalizado: {fileID: 8300000, guid: 470f05699387d274899a26c8159893b2, type: 3}
 --- !u!114 &4571235061809181510
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -217,9 +221,9 @@ MonoBehaviour:
   modelo3D: {fileID: 0}
   velocidadFlote: 2
   alturaFlote: 0.2
+  elevacionExtra: 1
   waypoints: []
   animator: {fileID: 0}
   tieneAnimWalk: 0
-  tieneAnimIdle: 0
   tieneAnimTalk: 0
   mirarAlJugador: 1

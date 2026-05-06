@@ -1,14 +1,14 @@
-using UnityEngine;
-using UnityEngine.UI;
-using TMPro;
-using UnityEngine.SceneManagement;
-using Firebase.Auth;
-using Firebase.Firestore;
-using Firebase.Extensions;
 using System.Collections.Generic;
+using Firebase.Auth;
+using Firebase.Extensions;
+using Firebase.Firestore;
+using TMPro;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 /// <summary>
-/// Gestiona la navegación del menú principal, el audio de la interfaz y la lógica 
+/// Gestiona la navegación del menú principal, el audio de la interfaz y la lógica
 /// de carga y creación de partidas guardadas (Save Slots) conectadas a Firestore.
 /// </summary>
 public class MenuManager : MonoBehaviour
@@ -18,12 +18,8 @@ public class MenuManager : MonoBehaviour
     public GameObject saveSlotsPanel;
 
     [Header("UI de Partidas Guardadas")]
-    public TextMeshProUGUI[] textosSlots; 
-    public Button[] botonesSlots; 
-
-    [Header("Audio")]
-    public AudioSource audioSource;
-    public AudioClip audioClip;
+    public TextMeshProUGUI[] textosSlots;
+    public Button[] botonesSlots;
 
     private FirebaseFirestore db;
     private FirebaseAuth auth;
@@ -35,7 +31,7 @@ public class MenuManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Oculta el menú principal, muestra el panel de selección de partidas 
+    /// Oculta el menú principal, muestra el panel de selección de partidas
     /// y solicita la descarga de datos a la base de datos.
     /// </summary>
     public void OpenSaveSlotsPanel()
@@ -58,50 +54,59 @@ public class MenuManager : MonoBehaviour
     /// </summary>
     private void CargarDatosSlots()
     {
-        if (auth.CurrentUser == null) return;
+        if (auth.CurrentUser == null)
+            return;
         string uid = auth.CurrentUser.UserId;
 
         for (int i = 0; i < 3; i++)
         {
-            int index = i; 
+            int index = i;
             textosSlots[index].text = "Cargando...";
             botonesSlots[index].interactable = false;
 
-            DocumentReference docRef = db.Collection("users").Document(uid).Collection("save_slots").Document("slot_" + index);
-            
-            docRef.GetSnapshotAsync().ContinueWithOnMainThread(task =>
-            {
-                botonesSlots[index].interactable = true;
+            DocumentReference docRef = db.Collection("users")
+                .Document(uid)
+                .Collection("save_slots")
+                .Document("slot_" + index);
 
-                if (task.IsCompleted && !task.IsFaulted && task.Result.Exists)
+            docRef
+                .GetSnapshotAsync()
+                .ContinueWithOnMainThread(task =>
                 {
-                    DocumentSnapshot snap = task.Result;
-                    int nivel = snap.GetValue<int>("lvl");
-                    int dinero = snap.GetValue<int>("money");
-                    
-                    textosSlots[index].text = $"Partida {index + 1}\n<size=80%>Nivel {nivel} - Monedas: {dinero}</size>";
-                    
-                    botonesSlots[index].onClick.RemoveAllListeners();
-                    botonesSlots[index].onClick.AddListener(() => IniciarPartida(index));
-                }
-                else
-                {
-                    textosSlots[index].text = $"Partida {index + 1}\n<color=#A8E6CF><size=80%>+ Nueva Partida</size></color>";
-                    
-                    botonesSlots[index].onClick.RemoveAllListeners();
-                    botonesSlots[index].onClick.AddListener(() => CrearNuevaPartida(index));
-                }
-            });
+                    botonesSlots[index].interactable = true;
+
+                    if (task.IsCompleted && !task.IsFaulted && task.Result.Exists)
+                    {
+                        DocumentSnapshot snap = task.Result;
+                        int nivel = snap.GetValue<int>("lvl");
+                        int dinero = snap.GetValue<int>("money");
+
+                        textosSlots[index].text =
+                            $"Partida {index + 1}\n<size=80%>Nivel {nivel} - Monedas: {dinero}</size>";
+
+                        botonesSlots[index].onClick.RemoveAllListeners();
+                        botonesSlots[index].onClick.AddListener(() => IniciarPartida(index));
+                    }
+                    else
+                    {
+                        textosSlots[index].text =
+                            $"Partida {index + 1}\n<color=#A8E6CF><size=80%>+ Nueva Partida</size></color>";
+
+                        botonesSlots[index].onClick.RemoveAllListeners();
+                        botonesSlots[index].onClick.AddListener(() => CrearNuevaPartida(index));
+                    }
+                });
         }
     }
 
     /// <summary>
-    /// Crea un nuevo documento en la subcolección save_slots con los valores iniciales 
+    /// Crea un nuevo documento en la subcolección save_slots con los valores iniciales
     /// por defecto y automáticamente inicia el juego.
     /// </summary>
     private void CrearNuevaPartida(int slotIndex)
     {
-        if (auth.CurrentUser == null) return;
+        if (auth.CurrentUser == null)
+            return;
         string uid = auth.CurrentUser.UserId;
 
         botonesSlots[slotIndex].interactable = false;
@@ -114,30 +119,37 @@ public class MenuManager : MonoBehaviour
             { "money", 0 },
             { "church_streak", 0 },
             { "tavern_lvl", 1 },
-            { "last_login", FieldValue.ServerTimestamp }
+            { "last_login", FieldValue.ServerTimestamp },
         };
 
-        db.Collection("users").Document(uid).Collection("save_slots").Document("slot_" + slotIndex)
-            .SetAsync(nuevaPartida).ContinueWithOnMainThread(task =>
-        {
-            if (task.IsCompleted)
+        db.Collection("users")
+            .Document(uid)
+            .Collection("save_slots")
+            .Document("slot_" + slotIndex)
+            .SetAsync(nuevaPartida)
+            .ContinueWithOnMainThread(task =>
             {
-                IniciarPartida(slotIndex);
-            }
-        });
+                if (task.IsCompleted)
+                {
+                    IniciarPartida(slotIndex);
+                }
+            });
     }
 
     /// <summary>
-    /// Guarda en las preferencias locales el slot seleccionado para que el resto 
-    /// de sistemas (inventario, pesca) sepan qué datos modificar, y carga la escena del juego.
+    /// Guarda en las preferencias locales el slot seleccionado, invoca la transición musical y carga la escena del juego.
     /// </summary>
     private void IniciarPartida(int slotIndex)
     {
         PlayerPrefs.SetInt("CurrentSaveSlot", slotIndex);
         PlayerPrefs.Save();
 
-        // Asegúrate de poner aquí el nombre real de tu escena de juego
-        changeScene("Game"); 
+        if (SoundManager.Instance != null)
+        {
+            SoundManager.Instance.ReproducirMusicaJuego();
+        }
+
+        changeScene("Game");
     }
 
     /// <summary>

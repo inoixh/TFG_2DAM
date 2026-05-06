@@ -162,7 +162,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GatoNPC
   idGatoDB: cat_swag
   idPezDeseado: fish_neon_salmon
-  nivelAfinidad: 1
+  nombreGato: Gato
+  recompensaExperiencia: 25
+  recompensaMonedas: 10
+  tiempoPaciencia: 300
+  maullidoPersonalizado: {fileID: 8300000, guid: eb98d7aaf8e0b81408eb48ac8e3d9375, type: 3}
 --- !u!114 &-3140285930219351475
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -185,9 +189,9 @@ MonoBehaviour:
   modelo3D: {fileID: 0}
   velocidadFlote: 2
   alturaFlote: 0.2
+  elevacionExtra: 1
   waypoints: []
   animator: {fileID: 0}
   tieneAnimWalk: 0
-  tieneAnimIdle: 0
   tieneAnimTalk: 0
   mirarAlJugador: 1

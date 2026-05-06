@@ -388,7 +388,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GatoNPC
   idGatoDB: cat_blackstar
   idPezDeseado: fish_galaxy_betta
-  nivelAfinidad: 1
+  nombreGato: Gato
+  recompensaExperiencia: 25
+  recompensaMonedas: 10
+  tiempoPaciencia: 300
+  maullidoPersonalizado: {fileID: 8300000, guid: 85dc31dc658a6f24ca4647442611ef07, type: 3}
 --- !u!114 &4233413657787795285
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -411,7 +415,7 @@ MonoBehaviour:
   modelo3D: {fileID: 1416449870481821864}
   velocidadFlote: 2
   alturaFlote: 0.01
-  elevacionExtra: 0.02
+  elevacionExtra: 0.01
   waypoints: []
   animator: {fileID: 0}
   tieneAnimWalk: 1

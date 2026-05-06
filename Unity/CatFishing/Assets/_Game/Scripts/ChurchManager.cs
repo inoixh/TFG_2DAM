@@ -67,7 +67,7 @@ public class ChurchManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Invoca el método de rezo del GameManager si el jugador no lo ha hecho hoy, actualizando UI y Bufos.
+    /// Invoca el rezo, actualiza UI, bufos y emite el sonido celestial.
     /// </summary>
     private void Rezar()
     {
@@ -75,6 +75,9 @@ public class ChurchManager : MonoBehaviour
         {
             GameManager.Instance.RealizarRezoDiario();
             ActualizarUIRacha();
+
+            if (SoundManager.Instance != null)
+                SoundManager.Instance.ReproducirRezarIglesia();
 
             bufosCargados = false;
             CargarBendicionesFirebase(GameManager.Instance.rachaIglesia);
@@ -88,7 +91,7 @@ public class ChurchManager : MonoBehaviour
     {
         int rachaActual = GameManager.Instance != null ? GameManager.Instance.rachaIglesia : 0;
         if (textoRacha != null)
-            textoRacha.text = $"Racha de fe: {rachaActual} días";
+            textoRacha.text = $"Días: {rachaActual}";
 
         if (GameManager.Instance != null && botonRezar != null)
         {

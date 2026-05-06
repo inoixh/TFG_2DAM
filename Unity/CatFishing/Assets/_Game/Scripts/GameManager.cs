@@ -1,12 +1,12 @@
-using UnityEngine;
-using UnityEngine.UI;
-using TMPro;
-using Firebase.Auth;
-using Firebase.Firestore;
-using Firebase.Extensions;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using Firebase.Auth;
+using Firebase.Extensions;
+using Firebase.Firestore;
+using TMPro;
+using UnityEngine;
+using UnityEngine.UI;
 
 /// <summary>
 /// Gestiona la progresión global, economía, rachas diarias, bufos activos temporales y la colección.
@@ -60,51 +60,68 @@ public class GameManager : MonoBehaviour
 
     private void ConfigurarRutasFirebase()
     {
-        if (FirebaseAuth.DefaultInstance.CurrentUser != null) idUsuario = FirebaseAuth.DefaultInstance.CurrentUser.UserId;
+        if (FirebaseAuth.DefaultInstance.CurrentUser != null)
+            idUsuario = FirebaseAuth.DefaultInstance.CurrentUser.UserId;
         int slotIndex = PlayerPrefs.GetInt("CurrentSaveSlot", 0);
         idSaveSlot = "slot_" + slotIndex;
     }
 
     private void CargarDatosJugador()
     {
-        if (string.IsNullOrEmpty(idUsuario)) return;
+        if (string.IsNullOrEmpty(idUsuario))
+            return;
 
         FirebaseFirestore db = FirebaseFirestore.DefaultInstance;
-        DocumentReference docRef = db.Collection("users").Document(idUsuario).Collection("save_slots").Document(idSaveSlot);
+        DocumentReference docRef = db.Collection("users")
+            .Document(idUsuario)
+            .Collection("save_slots")
+            .Document(idSaveSlot);
 
-        docRef.GetSnapshotAsync().ContinueWithOnMainThread(task =>
-        {
-            if (task.IsCompleted && task.Result.Exists)
+        docRef
+            .GetSnapshotAsync()
+            .ContinueWithOnMainThread(task =>
             {
-                DocumentSnapshot snap = task.Result;
-                
-                if (snap.ContainsField("lvl")) nivelActual = snap.GetValue<int>("lvl");
-                if (snap.ContainsField("xp")) experienciaActual = snap.GetValue<int>("xp");
-                if (snap.ContainsField("money")) dineroActual = snap.GetValue<int>("money");
-                if (snap.ContainsField("church_streak")) rachaIglesia = snap.GetValue<int>("church_streak");
-
-                if (snap.ContainsField("achieved_fish"))
+                if (task.IsCompleted && task.Result.Exists)
                 {
-                    Dictionary<string, object> pecesDB = snap.GetValue<Dictionary<string, object>>("achieved_fish");
-                    foreach (var pez in pecesDB) pecesCapturados[pez.Key] = Convert.ToInt32(pez.Value);
+                    DocumentSnapshot snap = task.Result;
+
+                    if (snap.ContainsField("lvl"))
+                        nivelActual = snap.GetValue<int>("lvl");
+                    if (snap.ContainsField("xp"))
+                        experienciaActual = snap.GetValue<int>("xp");
+                    if (snap.ContainsField("money"))
+                        dineroActual = snap.GetValue<int>("money");
+                    if (snap.ContainsField("church_streak"))
+                        rachaIglesia = snap.GetValue<int>("church_streak");
+
+                    if (snap.ContainsField("achieved_fish"))
+                    {
+                        Dictionary<string, object> pecesDB = snap.GetValue<
+                            Dictionary<string, object>
+                        >("achieved_fish");
+                        foreach (var pez in pecesDB)
+                            pecesCapturados[pez.Key] = Convert.ToInt32(pez.Value);
+                    }
+
+                    if (snap.ContainsField("met_cats"))
+                    {
+                        Dictionary<string, object> gatosDB = snap.GetValue<
+                            Dictionary<string, object>
+                        >("met_cats");
+                        foreach (var gato in gatosDB)
+                            afinidadGatos[gato.Key] = Convert.ToInt32(gato.Value);
+                    }
+
+                    ValidarRachaDiaria(snap);
+
+                    PlayerPrefs.SetInt("Lvl", nivelActual);
+                    PlayerPrefs.SetInt("CurrentLevel", nivelActual);
+                    PlayerPrefs.Save();
+
+                    CalcularExperienciaNecesaria();
+                    ActualizarInterfaz();
                 }
-
-                if (snap.ContainsField("met_cats"))
-                {
-                    Dictionary<string, object> gatosDB = snap.GetValue<Dictionary<string, object>>("met_cats");
-                    foreach (var gato in gatosDB) afinidadGatos[gato.Key] = Convert.ToInt32(gato.Value);
-                }
-
-                ValidarRachaDiaria(snap);
-
-                PlayerPrefs.SetInt("Lvl", nivelActual);
-                PlayerPrefs.SetInt("CurrentLevel", nivelActual);
-                PlayerPrefs.Save();
-
-                CalcularExperienciaNecesaria();
-                ActualizarInterfaz();
-            }
-        });
+            });
     }
 
     private void ValidarRachaDiaria(DocumentSnapshot snap)
@@ -117,12 +134,14 @@ public class GameManager : MonoBehaviour
 
             double diasDiferencia = (fechaHoy - fechaUltima).TotalDays;
 
-            if (diasDiferencia == 0) haRezadoHoy = true;
-            else if (diasDiferencia == 1) haRezadoHoy = false;
-            else 
+            if (diasDiferencia == 0)
+                haRezadoHoy = true;
+            else if (diasDiferencia == 1)
+                haRezadoHoy = false;
+            else
             {
-                haRezadoHoy = false; 
-                rachaIglesia = 0; 
+                haRezadoHoy = false;
+                rachaIglesia = 0;
             }
         }
         else
@@ -135,24 +154,34 @@ public class GameManager : MonoBehaviour
 
     public void RealizarRezoDiario()
     {
-        if (haRezadoHoy || string.IsNullOrEmpty(idUsuario)) return;
+        if (haRezadoHoy || string.IsNullOrEmpty(idUsuario))
+            return;
 
         haRezadoHoy = true;
         rachaIglesia++;
 
         FirebaseFirestore db = FirebaseFirestore.DefaultInstance;
-        DocumentReference docRef = db.Collection("users").Document(idUsuario).Collection("save_slots").Document(idSaveSlot);
+        DocumentReference docRef = db.Collection("users")
+            .Document(idUsuario)
+            .Collection("save_slots")
+            .Document(idSaveSlot);
         docRef.UpdateAsync("church_last_pray", FieldValue.ServerTimestamp);
 
         GuardarDatosJugador();
 
-        if (UIManager.Instance != null) UIManager.Instance.MostrarTooltipTemporal($"¡Fe renovada! Racha actual: {rachaIglesia} días", 4f);
+        if (UIManager.Instance != null)
+            UIManager.Instance.MostrarTooltipTemporal(
+                $"¡Fe renovada! Racha actual: {rachaIglesia} días",
+                4f
+            );
     }
 
     public void RegistrarPezCapturado(string pezID)
     {
-        if (pecesCapturados.ContainsKey(pezID)) pecesCapturados[pezID]++;
-        else pecesCapturados[pezID] = 1;
+        if (pecesCapturados.ContainsKey(pezID))
+            pecesCapturados[pezID]++;
+        else
+            pecesCapturados[pezID] = 1;
         GuardarDatosJugador();
     }
 
@@ -169,6 +198,9 @@ public class GameManager : MonoBehaviour
         GuardarDatosJugador();
     }
 
+    /// <summary>
+    /// Añade experiencia, gestiona las subidas de nivel y activa sus sonidos.
+    /// </summary>
     public void AnadirExperiencia(int cantidad)
     {
         experienciaActual += Mathf.RoundToInt(cantidad * bufoGananciaXP);
@@ -178,20 +210,19 @@ public class GameManager : MonoBehaviour
             experienciaActual -= experienciaNecesaria;
             nivelActual++;
             CalcularExperienciaNecesaria();
-            
+
             PlayerPrefs.SetInt("CurrentLevel", nivelActual);
             PlayerPrefs.Save();
-            
-            if (UIManager.Instance != null) UIManager.Instance.MostrarSubidaNivelGlobal(nivelActual);
+
+            if (UIManager.Instance != null)
+                UIManager.Instance.MostrarSubidaNivelGlobal(nivelActual);
+            if (SoundManager.Instance != null)
+                SoundManager.Instance.ReproducirSubirNivel();
         }
 
         ActualizarInterfaz();
         GuardarDatosJugador();
     }
-
-    // =========================================================================
-    // SISTEMA DE BUFOS TEMPORALES
-    // =========================================================================
 
     /// <summary>
     /// Aplica el modificador e inicia un temporizador para revertirlo.
@@ -202,29 +233,71 @@ public class GameManager : MonoBehaviour
 
         switch (servicio.objetivoEfecto)
         {
-            case "rare_spawn_multiplier": 
-                bufoRarezaPesca = servicio.valorEfecto; 
-                StartCoroutine(TemporizadorBufo("rare_spawn_multiplier", 1f, duracionSegundos, servicio.nombreDisplay));
+            case "rare_spawn_multiplier":
+                bufoRarezaPesca = servicio.valorEfecto;
+                StartCoroutine(
+                    TemporizadorBufo(
+                        "rare_spawn_multiplier",
+                        1f,
+                        duracionSegundos,
+                        servicio.nombreDisplay
+                    )
+                );
                 break;
-            case "xp_gain_multiplier": 
-                bufoGananciaXP = servicio.valorEfecto; 
-                StartCoroutine(TemporizadorBufo("xp_gain_multiplier", 1f, duracionSegundos, servicio.nombreDisplay));
+            case "xp_gain_multiplier":
+                bufoGananciaXP = servicio.valorEfecto;
+                StartCoroutine(
+                    TemporizadorBufo(
+                        "xp_gain_multiplier",
+                        1f,
+                        duracionSegundos,
+                        servicio.nombreDisplay
+                    )
+                );
                 break;
-            case "affinity_gain_multiplier": 
-                bufoAfinidad = servicio.valorEfecto; 
-                StartCoroutine(TemporizadorBufo("affinity_gain_multiplier", 1f, duracionSegundos, servicio.nombreDisplay));
+            case "affinity_gain_multiplier":
+                bufoAfinidad = servicio.valorEfecto;
+                StartCoroutine(
+                    TemporizadorBufo(
+                        "affinity_gain_multiplier",
+                        1f,
+                        duracionSegundos,
+                        servicio.nombreDisplay
+                    )
+                );
                 break;
-            case "sell_price_multiplier": 
-                bufoPrecioVenta = servicio.valorEfecto; 
-                StartCoroutine(TemporizadorBufo("sell_price_multiplier", 1f, duracionSegundos, servicio.nombreDisplay));
+            case "sell_price_multiplier":
+                bufoPrecioVenta = servicio.valorEfecto;
+                StartCoroutine(
+                    TemporizadorBufo(
+                        "sell_price_multiplier",
+                        1f,
+                        duracionSegundos,
+                        servicio.nombreDisplay
+                    )
+                );
                 break;
-            case "minigame_difficulty": 
-                bufoReduccionDificultad = servicio.valorEfecto; 
-                StartCoroutine(TemporizadorBufo("minigame_difficulty", 0f, duracionSegundos, servicio.nombreDisplay));
+            case "minigame_difficulty":
+                bufoReduccionDificultad = servicio.valorEfecto;
+                StartCoroutine(
+                    TemporizadorBufo(
+                        "minigame_difficulty",
+                        0f,
+                        duracionSegundos,
+                        servicio.nombreDisplay
+                    )
+                );
                 break;
-            case "double_catch_chance": 
-                bufoProbabilidadDoble = servicio.valorEfecto; 
-                StartCoroutine(TemporizadorBufo("double_catch_chance", 0f, duracionSegundos, servicio.nombreDisplay));
+            case "double_catch_chance":
+                bufoProbabilidadDoble = servicio.valorEfecto;
+                StartCoroutine(
+                    TemporizadorBufo(
+                        "double_catch_chance",
+                        0f,
+                        duracionSegundos,
+                        servicio.nombreDisplay
+                    )
+                );
                 break;
         }
     }
@@ -232,43 +305,82 @@ public class GameManager : MonoBehaviour
     /// <summary>
     /// Espera el tiempo establecido y devuelve la estadística a su valor base.
     /// </summary>
-    private IEnumerator TemporizadorBufo(string tipoBufo, float valorBase, float tiempo, string nombreServicio)
+    private IEnumerator TemporizadorBufo(
+        string tipoBufo,
+        float valorBase,
+        float tiempo,
+        string nombreServicio
+    )
     {
         yield return new WaitForSeconds(tiempo);
 
         switch (tipoBufo)
         {
-            case "rare_spawn_multiplier": bufoRarezaPesca = valorBase; break;
-            case "xp_gain_multiplier": bufoGananciaXP = valorBase; break;
-            case "affinity_gain_multiplier": bufoAfinidad = valorBase; break;
-            case "sell_price_multiplier": bufoPrecioVenta = valorBase; break;
-            case "minigame_difficulty": bufoReduccionDificultad = valorBase; break;
-            case "double_catch_chance": bufoProbabilidadDoble = valorBase; break;
+            case "rare_spawn_multiplier":
+                bufoRarezaPesca = valorBase;
+                break;
+            case "xp_gain_multiplier":
+                bufoGananciaXP = valorBase;
+                break;
+            case "affinity_gain_multiplier":
+                bufoAfinidad = valorBase;
+                break;
+            case "sell_price_multiplier":
+                bufoPrecioVenta = valorBase;
+                break;
+            case "minigame_difficulty":
+                bufoReduccionDificultad = valorBase;
+                break;
+            case "double_catch_chance":
+                bufoProbabilidadDoble = valorBase;
+                break;
         }
 
-        if (UIManager.Instance != null) 
+        if (UIManager.Instance != null)
         {
-            UIManager.Instance.MostrarTooltipTemporal($"El efecto de {nombreServicio} se ha agotado.", 4f);
+            UIManager.Instance.MostrarTooltipTemporal(
+                $"El efecto de {nombreServicio} se ha agotado.",
+                4f
+            );
         }
     }
 
-    private void CalcularExperienciaNecesaria() { experienciaNecesaria = Mathf.RoundToInt(baseXP * Mathf.Pow(multiplicadorXP, nivelActual - 1)); }
+    private void CalcularExperienciaNecesaria()
+    {
+        experienciaNecesaria = Mathf.RoundToInt(
+            baseXP * Mathf.Pow(multiplicadorXP, nivelActual - 1)
+        );
+    }
 
     private void ActualizarInterfaz()
     {
-        if (textoNivel != null) textoNivel.text = "Lvl " + nivelActual.ToString() + " | XP " + experienciaActual.ToString();
-        if (textoDinero != null) textoDinero.text = dineroActual.ToString();
-        if (barraExperiencia != null) { barraExperiencia.maxValue = experienciaNecesaria; barraExperiencia.value = experienciaActual; }
+        if (textoNivel != null)
+            textoNivel.text =
+                "Lvl " + nivelActual.ToString() + " | XP " + experienciaActual.ToString();
+        if (textoDinero != null)
+            textoDinero.text = dineroActual.ToString();
+        if (barraExperiencia != null)
+        {
+            barraExperiencia.maxValue = experienciaNecesaria;
+            barraExperiencia.value = experienciaActual;
+        }
     }
 
-    public int ObtenerDinero() { return dineroActual; }
+    public int ObtenerDinero()
+    {
+        return dineroActual;
+    }
 
     public void GuardarDatosJugador()
     {
-        if (string.IsNullOrEmpty(idUsuario)) return;
+        if (string.IsNullOrEmpty(idUsuario))
+            return;
 
         FirebaseFirestore db = FirebaseFirestore.DefaultInstance;
-        DocumentReference docRef = db.Collection("users").Document(idUsuario).Collection("save_slots").Document(idSaveSlot);
+        DocumentReference docRef = db.Collection("users")
+            .Document(idUsuario)
+            .Collection("save_slots")
+            .Document(idSaveSlot);
 
         Dictionary<string, object> datos = new Dictionary<string, object>
         {
@@ -277,7 +389,7 @@ public class GameManager : MonoBehaviour
             { "money", dineroActual },
             { "church_streak", rachaIglesia },
             { "achieved_fish", pecesCapturados },
-            { "met_cats", afinidadGatos }
+            { "met_cats", afinidadGatos },
         };
 
         docRef.SetAsync(datos, SetOptions.MergeAll);

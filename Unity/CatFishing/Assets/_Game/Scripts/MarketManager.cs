@@ -302,7 +302,7 @@ public class MarketManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Ejecuta la compra descontando dinero si es suficiente y añadiendo el objeto a la mochila.
+    /// Ejecuta la compra, descuenta dinero, añade a mochila y reproduce sonido.
     /// </summary>
     private void ComprarItem()
     {
@@ -317,12 +317,14 @@ public class MarketManager : MonoBehaviour
             if (anadido)
             {
                 GameManager.Instance.AnadirDinero(-itemSeleccionado.precioVenta);
+                if (SoundManager.Instance != null)
+                    SoundManager.Instance.ReproducirComprar();
             }
         }
     }
 
     /// <summary>
-    /// Ejecuta la venta retirando el objeto de la mochila y sumando el dinero al jugador.
+    /// Ejecuta la venta, retira de la mochila, suma dinero y reproduce sonido.
     /// </summary>
     private void VenderItem()
     {
@@ -335,6 +337,8 @@ public class MarketManager : MonoBehaviour
         GameManager.Instance.AnadirDinero(gananciaFinal);
         InventorySystem.Instance.LimpiarCasilla(indiceInventarioSeleccionado);
 
+        if (SoundManager.Instance != null)
+            SoundManager.Instance.ReproducirVender();
         LimpiarPreview();
     }
 }
