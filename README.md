@@ -16,8 +16,8 @@
 - [Tecnologías](#tecnologías)
 - [Estructura del Proyecto](#estructura-del-proyecto)
 - [Estructura de Datos](#estructura-de-datos)
-- [Instalación](#instalación)
-- [Compilación](#compilación)
+- [Requisitos Mínimos del Sistema](#requisitos-mínimos-del-sistema)
+- [Manual de Instalación y Usuario](#manual-de-instalación-y-usuario)
 - [Testing](#testing)
 - [Información Académica](#información-académica)
 
@@ -238,58 +238,48 @@ El ecosistema del juego está centralizado en una base de datos Firestore con la
 
 ---
 
-## Instalación
+## Requisitos Mínimos del Sistema
 
-### Requisitos Previos
-- Unity 2022.3 LTS o superior
-- C# 9.0 o compatible
-- Cuenta de Firebase (configurada)
-- Git para control de versiones
+Para garantizar un rendimiento fluido y la correcta comunicación con la base de datos, el equipo del usuario final debe cumplir con las siguientes especificaciones:
 
-### Pasos de Configuración
-
-1. **Clonar el repositorio**
-   ```bash
-   git clone https://github.com/inoixh/TFG_2DAM.git
-   cd TFG_2DAM/Unity/CatFishing
-   ```
-
-2. **Abrir en Unity**
-   - Abrir Unity Hub
-   - Seleccionar "Abrir proyecto"
-   - Navegar a `Unity/CatFishing`
-   - Unity descargará las dependencias automáticamente
-
-3. **Configurar Firebase**
-   - Crear proyecto en [Firebase Console](https://console.firebase.google.com)
-   - Descargar archivo de configuración (google-services.json o GoogleService-Info.plist)
-   - Colocar en la carpeta de configuración correspondiente
-   - Configurar reglas de seguridad en Firestore
-
-4. **Ejecutar el Proyecto**
-   - Abrir escena principal en el editor
-   - Hacer click en el botón Play
-   - O compilar para tu plataforma objetivo
+- **Sistema Operativo:** Windows 10 / Windows 11 (64 bits)
+- **Procesador:** Intel Core i3-8100 / AMD Ryzen 3 1200 o superior
+- **Memoria RAM:** 4 GB (6-8 GB recomendado)
+- **Tarjeta Gráfica:** Compatible con DirectX 11, 2 GB VRAM mínimo
+- **Almacenamiento:** 500 MB de espacio libre
+- **Conexión:** Conexión a Internet permanente (requerida para guardado en la nube y autenticación)
 
 ---
 
-## Compilación
+## Manual de Instalación y Usuario
 
-Para compilar el proyecto para diferentes plataformas:
+El proceso de instalación para el usuario final está diseñado para ser inmediato (Plug & Play), sin requerir instaladores de terceros:
 
-```bash
-# Windows
-unity -batchmode -nographics -projectPath ./Unity/CatFishing -buildWindowsPlayer ./Build/CatFishing.exe
+### Pasos de Instalación
 
-# macOS
-unity -batchmode -nographics -projectPath ./Unity/CatFishing -buildOSXUniversalPlayer ./Build/CatFishing.app
+1. **Descarga**
+   - Obtener el archivo `CatFishing.zip`
 
-# Android
-unity -batchmode -nographics -projectPath ./Unity/CatFishing -buildAndroidPlayer ./Build/CatFishing.apk
+2. **Extracción**
+   - Descomprimir el archivo en el directorio local deseado
+   - Se requiere permisos de escritura en la carpeta para los archivos temporales de Unity
 
-# WebGL
-unity -batchmode -nographics -projectPath ./Unity/CatFishing -buildWebGL ./Build/WebGL
-```
+3. **Ejecución**
+   - Hacer doble clic sobre el archivo `CatFishing.exe`
+
+### Uso Inicial
+
+Al iniciarse la aplicación por primera vez, el jugador deberá:
+
+1. **Crear Cuenta**
+   - Acceder al panel "Register"
+   - Utilizar un formato de correo válido
+   - Establecer una contraseña de al menos 6 caracteres
+
+2. **Acceder al Juego**
+   - Desde el panel "Login", ingrese sus credenciales
+   - La sesión se sincronizará automáticamente en la nube
+   - El jugador podrá acceder a sus partidas guardadas desde cualquier dispositivo
 
 ---
 
