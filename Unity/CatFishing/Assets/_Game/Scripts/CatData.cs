@@ -1,7 +1,7 @@
 using UnityEngine;
 
 /// <summary>
-/// Contenedor de datos para los NPCs Gatos registrados en la colección.
+/// Estructura de datos para crear gatos de forma ordenada desde el editor.
 /// </summary>
 public class CatData : ScriptableObject
 {

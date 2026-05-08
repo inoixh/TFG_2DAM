@@ -103,31 +103,5 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents:
-    - targetCorrespondingSourceObject: {fileID: 8128668236925612103, guid: ebb14db0bc136ae45baf22ce1884ce04, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 5737868421558367160}
+    m_AddedComponents: []
   m_SourcePrefab: {fileID: -5645937942226959685, guid: ebb14db0bc136ae45baf22ce1884ce04, type: 3}
---- !u!1 &7435233282163364900 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 8128668236925612103, guid: ebb14db0bc136ae45baf22ce1884ce04, type: 3}
-  m_PrefabInstance: {fileID: 1720821422524327011}
-  m_PrefabAsset: {fileID: 0}
---- !u!114 &5737868421558367160
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7435233282163364900}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 7adc57b198526b7418fc0dffae267e7c, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::GatoNPC
-  idGatoDB: cat_bao
-  idPezDeseado: fish_jade_dragonfish
-  nombreGato: Gato
-  recompensaExperiencia: 25
-  recompensaMonedas: 10
-  tiempoPaciencia: 300

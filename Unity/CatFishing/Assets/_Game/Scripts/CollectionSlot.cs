@@ -3,8 +3,7 @@ using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 /// <summary>
-/// Controla la lógica visual de una casilla en la colección, adaptándose a si contiene un pez o un gato.
-/// Ignora las interacciones si el elemento no ha sido descubierto.
+/// Muestra si un elemento de la colección está desbloqueado y reacciona al clic.
 /// </summary>
 public class CollectionSlot : MonoBehaviour, IPointerClickHandler
 {
@@ -17,40 +16,68 @@ public class CollectionSlot : MonoBehaviour, IPointerClickHandler
     private bool estaDesbloqueado;
 
     /// <summary>
-    /// Configura la casilla en modo Gato, mostrando su icono real si está descubierto o uno bloqueado en caso contrario.
+    /// Aplica los datos de un gato, mostrando una silueta si no está descubierto.
     /// </summary>
     public void ConfigurarGato(CatData gato, bool desbloqueado, Sprite iconoIncognita)
     {
         datosGato = gato;
         esGato = true;
         estaDesbloqueado = desbloqueado;
+
         if (iconoItem != null)
+        {
             iconoItem.sprite = desbloqueado ? gato.icono : iconoIncognita;
+        }
+        else
+        {
+            Debug.LogWarning("No existe el componente Image para el icono en CollectionSlot.");
+        }
     }
 
     /// <summary>
-    /// Configura la casilla en modo Pez, mostrando su icono real si está descubierto o uno bloqueado en caso contrario.
+    /// Aplica los datos de un pez, mostrando una silueta si no está descubierto.
     /// </summary>
     public void ConfigurarPez(ItemData pez, bool desbloqueado, Sprite iconoIncognita)
     {
         datosPez = pez;
         esGato = false;
         estaDesbloqueado = desbloqueado;
+
         if (iconoItem != null)
+        {
             iconoItem.sprite = desbloqueado ? pez.icono : iconoIncognita;
+        }
+        else
+        {
+            Debug.LogWarning("No existe el componente Image para el icono en CollectionSlot.");
+        }
     }
 
     /// <summary>
-    /// Envía la información al panel de Preview correspondiente si el elemento es público.
+    /// Informa al panel principal cuando el jugador pulsa sobre esta casilla.
     /// </summary>
     public void OnPointerClick(PointerEventData eventData)
     {
-        if (!estaDesbloqueado)
-            return;
-
-        if (esGato && datosGato != null && CollectionManager.Instance != null)
-            CollectionManager.Instance.SeleccionarGato(datosGato);
-        else if (!esGato && datosPez != null && CollectionManager.Instance != null)
-            CollectionManager.Instance.SeleccionarPez(datosPez);
+        if (estaDesbloqueado)
+        {
+            if (esGato && datosGato != null && CollectionManager.Instance != null)
+            {
+                CollectionManager.Instance.SeleccionarGato(datosGato);
+            }
+            else if (!esGato && datosPez != null && CollectionManager.Instance != null)
+            {
+                CollectionManager.Instance.SeleccionarPez(datosPez);
+            }
+            else
+            {
+                Debug.LogWarning(
+                    "Faltan datos o el CollectionManager no está disponible para procesar el clic."
+                );
+            }
+        }
+        else
+        {
+            Debug.LogWarning("El jugador ha clicado un objeto no desbloqueado, se ignora.");
+        }
     }
 }

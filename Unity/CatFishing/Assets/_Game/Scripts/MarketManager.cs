@@ -7,8 +7,7 @@ using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 /// <summary>
-/// Gestiona la lógica comercial, la generación dinámica del catálogo desde Firestore
-/// y la actualización visual de las transacciones.
+/// Muestra los objetos que vende el mercado, calcula precios y permite comprar y vender artículos.
 /// </summary>
 public class MarketManager : MonoBehaviour
 {
@@ -47,28 +46,46 @@ public class MarketManager : MonoBehaviour
     [HideInInspector]
     public bool itemsCargados = false;
 
+    /// <summary>
+    /// Nombra a este script como el mercado principal y apaga su pantalla al inicio.
+    /// </summary>
     private void Awake()
     {
         if (Instance == null)
+        {
             Instance = this;
+        }
         else
+        {
             Destroy(gameObject);
+        }
 
         mercadoAbierto = false;
     }
 
+    /// <summary>
+    /// Prepara los botones y pide descargar los productos de internet.
+    /// </summary>
     private void Start()
     {
         if (panelMercado != null)
+        {
             panelMercado.SetActive(false);
+        }
 
-        botonComprar.onClick.AddListener(ComprarItem);
-        botonVender.onClick.AddListener(VenderItem);
-        botonCerrar.onClick.AddListener(CerrarMercado);
+        if (botonComprar != null)
+            botonComprar.onClick.AddListener(ComprarItem);
+        if (botonVender != null)
+            botonVender.onClick.AddListener(VenderItem);
+        if (botonCerrar != null)
+            botonCerrar.onClick.AddListener(CerrarMercado);
 
         CargarCatalogoDesdeFirebase();
     }
 
+    /// <summary>
+    /// Permite cerrar la tienda usando la tecla Escape en lugar de hacer clic en la equis.
+    /// </summary>
     private void Update()
     {
         if (mercadoAbierto && Keyboard.current.escapeKey.wasPressedThisFrame)
@@ -78,127 +95,167 @@ public class MarketManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Se conecta a Firestore, construye los ItemData en memoria, carga sus recursos (2D y 3D)
-    /// y rellena la tienda filtrando la basura.
+    /// Se conecta a la base de datos de los artículos, crea sus modelos en el juego y los pone en los escaparates visuales.
     /// </summary>
     private async void CargarCatalogoDesdeFirebase()
     {
-        if (catalogoCargado)
-            return;
+        FirebaseFirestore db;
+        CollectionReference itemsRef;
+        QuerySnapshot snapshot;
+        Dictionary<string, object> itemDict;
+        ItemData nuevoItem;
+        string tipoItem;
+        Sprite spriteUnico;
+        GameObject modeloUnico;
+        string rarezaStr;
+        GameObject slotGO;
+        MarketSlot slotScript;
 
-        FirebaseFirestore db = FirebaseFirestore.DefaultInstance;
-        CollectionReference itemsRef = db.Collection("items");
-
-        try
+        if (!catalogoCargado)
         {
-            QuerySnapshot snapshot = await itemsRef.GetSnapshotAsync();
+            db = FirebaseFirestore.DefaultInstance;
+            itemsRef = db.Collection("items");
 
-            foreach (DocumentSnapshot doc in snapshot.Documents)
+            try
             {
-                Dictionary<string, object> itemDict = doc.ToDictionary();
+                snapshot = await itemsRef.GetSnapshotAsync();
 
-                ItemData nuevoItem = ScriptableObject.CreateInstance<ItemData>();
-                nuevoItem.ID = doc.Id;
-
-                string tipoItem = "";
-                Sprite spriteUnico;
-                GameObject modeloUnico;
-
-                if (itemDict.ContainsKey("name"))
-                    nuevoItem.nombreDisplay = itemDict["name"].ToString();
-                if (itemDict.ContainsKey("description"))
-                    nuevoItem.descripcion = itemDict["description"].ToString();
-                if (itemDict.ContainsKey("price"))
-                    nuevoItem.precioVenta = System.Convert.ToInt32(itemDict["price"]);
-
-                if (itemDict.ContainsKey("type"))
+                foreach (DocumentSnapshot doc in snapshot.Documents)
                 {
-                    tipoItem = itemDict["type"].ToString().ToLower();
-                    if (tipoItem == "rod")
-                        nuevoItem.esCanaDePescar = true;
-                }
+                    itemDict = doc.ToDictionary();
+                    nuevoItem = ScriptableObject.CreateInstance<ItemData>();
+                    nuevoItem.ID = doc.Id;
+                    tipoItem = "";
 
-                // Extracción dinámica de la rareza desde la BD
-                string rarezaStr = itemDict.ContainsKey("rarity")
-                    ? itemDict["rarity"].ToString().ToLower()
-                    : "común";
-                nuevoItem.rareza = DeterminarRareza(rarezaStr);
+                    if (itemDict.ContainsKey("name"))
+                        nuevoItem.nombreDisplay = itemDict["name"].ToString();
+                    if (itemDict.ContainsKey("description"))
+                        nuevoItem.descripcion = itemDict["description"].ToString();
+                    if (itemDict.ContainsKey("price"))
+                        nuevoItem.precioVenta = System.Convert.ToInt32(itemDict["price"]);
 
-                spriteUnico = Resources.Load<Sprite>("ItemIcons/" + nuevoItem.ID);
-                nuevoItem.icono = spriteUnico != null ? spriteUnico : iconoGenerico;
-
-                modeloUnico = Resources.Load<GameObject>("ItemModels/" + nuevoItem.ID);
-                nuevoItem.modelo3D = modeloUnico;
-
-                todosLosItems.Add(nuevoItem);
-
-                if (tipoItem != "trash")
-                {
-                    GameObject slotGO = Instantiate(prefabMarketSlot, contenedorProductos);
-                    slotGO.transform.localScale = Vector3.one;
-
-                    MarketSlot slotScript = slotGO.GetComponent<MarketSlot>();
-                    if (slotScript != null)
+                    if (itemDict.ContainsKey("type"))
                     {
-                        slotScript.ConfigurarSlot(nuevoItem);
+                        tipoItem = itemDict["type"].ToString().ToLower();
+                        if (tipoItem == "rod")
+                        {
+                            nuevoItem.esCanaDePescar = true;
+                        }
+                    }
+
+                    if (itemDict.ContainsKey("rarity"))
+                    {
+                        rarezaStr = itemDict["rarity"].ToString().ToLower();
+                    }
+                    else
+                    {
+                        rarezaStr = "común";
+                    }
+
+                    nuevoItem.rareza = DeterminarRareza(rarezaStr);
+
+                    spriteUnico = Resources.Load<Sprite>("ItemIcons/" + nuevoItem.ID);
+                    if (spriteUnico != null)
+                    {
+                        nuevoItem.icono = spriteUnico;
+                    }
+                    else
+                    {
+                        nuevoItem.icono = iconoGenerico;
+                    }
+
+                    modeloUnico = Resources.Load<GameObject>("ItemModels/" + nuevoItem.ID);
+                    nuevoItem.modelo3D = modeloUnico;
+
+                    todosLosItems.Add(nuevoItem);
+
+                    if (tipoItem != "trash")
+                    {
+                        slotGO = Instantiate(prefabMarketSlot, contenedorProductos);
+                        slotGO.transform.localScale = Vector3.one;
+
+                        slotScript = slotGO.GetComponent<MarketSlot>();
+                        if (slotScript != null)
+                        {
+                            slotScript.ConfigurarSlot(nuevoItem);
+                        }
                     }
                 }
-            }
 
-            catalogoCargado = true;
-            itemsCargados = true;
-        }
-        catch (System.Exception e)
-        {
-            Debug.LogError("Error cargando base de datos del mercado: " + e.Message);
+                catalogoCargado = true;
+                itemsCargados = true;
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning(
+                    "Error al intentar obtener los objetos de la tienda: " + e.Message
+                );
+            }
         }
     }
 
     /// <summary>
-    /// Traduce el texto de la BD al enumerador correspondiente de rareza.
+    /// Traduce la categoría descargada a un valor entendible por el juego.
     /// </summary>
     private Rareza DeterminarRareza(string rarezaStr)
     {
+        Rareza resultado;
+
         switch (rarezaStr)
         {
             case "común":
             case "comun":
-                return Rareza.Comun;
+                resultado = Rareza.Comun;
+                break;
             case "raro":
-                return Rareza.Raro;
+                resultado = Rareza.Raro;
+                break;
             case "especial":
-                return Rareza.Especial;
+                resultado = Rareza.Especial;
+                break;
             case "épico":
             case "epico":
-                return Rareza.Epico;
+                resultado = Rareza.Epico;
+                break;
             case "legendario":
-                return Rareza.Legendario;
+                resultado = Rareza.Legendario;
+                break;
             default:
-                return Rareza.Comun;
+                resultado = Rareza.Comun;
+                break;
         }
+
+        return resultado;
     }
 
     /// <summary>
-    /// Bloquea los controles del jugador, muestra la interfaz del mercado y activa la mochila.
+    /// Muestra la pantalla del mercado, abre la mochila del jugador y congela la cámara.
     /// </summary>
     public void AbrirMercado()
     {
+        CamaraMovement camara;
+        PlayerMovement movimiento;
+
         mercadoAbierto = true;
-        panelMercado.SetActive(true);
+
+        if (panelMercado != null)
+        {
+            panelMercado.SetActive(true);
+        }
 
         if (InventorySystem.Instance != null)
         {
             InventorySystem.Instance.panelMochila.SetActive(true);
         }
 
-        CamaraMovement camara = FindFirstObjectByType<CamaraMovement>();
+        camara = FindFirstObjectByType<CamaraMovement>();
         if (camara != null)
         {
             camara.rotacionBloqueada = true;
             camara.DesbloquearCursor();
         }
 
-        PlayerMovement movimiento = FindFirstObjectByType<PlayerMovement>();
+        movimiento = FindFirstObjectByType<PlayerMovement>();
         if (movimiento != null)
         {
             movimiento.movimientoBloqueado = true;
@@ -208,26 +265,33 @@ public class MarketManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Oculta la interfaz del mercado, la mochila y devuelve el control de movimiento y cámara al jugador.
+    /// Oculta la pantalla del mercado, cierra la mochila y devuelve el movimiento normal al jugador.
     /// </summary>
     public void CerrarMercado()
     {
+        CamaraMovement camara;
+        PlayerMovement movimiento;
+
         mercadoAbierto = false;
-        panelMercado.SetActive(false);
+
+        if (panelMercado != null)
+        {
+            panelMercado.SetActive(false);
+        }
 
         if (InventorySystem.Instance != null)
         {
             InventorySystem.Instance.panelMochila.SetActive(false);
         }
 
-        CamaraMovement camara = FindFirstObjectByType<CamaraMovement>();
+        camara = FindFirstObjectByType<CamaraMovement>();
         if (camara != null)
         {
             camara.rotacionBloqueada = false;
             camara.BloquearCursor();
         }
 
-        PlayerMovement movimiento = FindFirstObjectByType<PlayerMovement>();
+        movimiento = FindFirstObjectByType<PlayerMovement>();
         if (movimiento != null)
         {
             movimiento.movimientoBloqueado = false;
@@ -235,7 +299,7 @@ public class MarketManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Muestra los datos de un objeto procedente del catálogo de la tienda y ajusta los botones.
+    /// Marca un objeto que vende el mercado para poder ver sus datos y habilita el botón de comprar.
     /// </summary>
     public void SeleccionarItemTienda(ItemData item)
     {
@@ -248,97 +312,148 @@ public class MarketManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Muestra los datos de un objeto procedente de la mochila del jugador y ajusta los botones.
+    /// Marca un objeto propio de la mochila para ver sus datos y habilita el botón de vender.
     /// </summary>
     public void SeleccionarItemInventario(ItemData item, int indiceSlot)
     {
-        if (item == null)
-            return;
+        if (item != null)
+        {
+            itemSeleccionado = item;
+            seleccionDesdeTienda = false;
+            indiceInventarioSeleccionado = indiceSlot;
 
-        itemSeleccionado = item;
-        seleccionDesdeTienda = false;
-        indiceInventarioSeleccionado = indiceSlot;
-
-        ActualizarPreview(item);
-        ConfigurarBotones(false, true);
+            ActualizarPreview(item);
+            ConfigurarBotones(false, true);
+        }
+        else
+        {
+            Debug.LogWarning("Se intentó seleccionar un objeto vacío de la mochila.");
+        }
     }
 
     /// <summary>
-    /// Rellena el panel de vista previa con la información gráfica y de texto del objeto.
+    /// Escribe los detalles del objeto seleccionado en el cuadro lateral de información.
     /// </summary>
     private void ActualizarPreview(ItemData item)
     {
-        imagenPreview.sprite = item.icono;
-        imagenPreview.color = Color.white;
-        textoNombre.text = item.nombreDisplay;
-        textoRareza.text = item.rareza.NombreFormateado();
-        textoDescripcion.text = item.descripcion;
-        textoPrecio.text = item.precioVenta.ToString();
+        if (imagenPreview != null)
+        {
+            imagenPreview.sprite = item.icono;
+            imagenPreview.color = Color.white;
+        }
+
+        if (textoNombre != null)
+            textoNombre.text = item.nombreDisplay;
+        if (textoRareza != null)
+            textoRareza.text = item.rareza.NombreFormateado();
+        if (textoDescripcion != null)
+            textoDescripcion.text = item.descripcion;
+        if (textoPrecio != null)
+            textoPrecio.text = item.precioVenta.ToString();
     }
 
     /// <summary>
-    /// Restablece el panel de previsualización visualmente cuando no hay nada seleccionado.
+    /// Borra los detalles del cuadro lateral para dejarlo como nuevo.
     /// </summary>
     private void LimpiarPreview()
     {
         itemSeleccionado = null;
-        imagenPreview.sprite = iconoGenerico;
-        imagenPreview.color = new Color(1, 1, 1, 0);
-        textoNombre.text = "Selecciona un objeto";
-        textoRareza.text = "";
-        textoDescripcion.text = "";
-        textoPrecio.text = "";
+
+        if (imagenPreview != null)
+        {
+            imagenPreview.sprite = iconoGenerico;
+            imagenPreview.color = new Color(1, 1, 1, 0);
+        }
+
+        if (textoNombre != null)
+            textoNombre.text = "Selecciona un objeto";
+        if (textoRareza != null)
+            textoRareza.text = "";
+        if (textoDescripcion != null)
+            textoDescripcion.text = "";
+        if (textoPrecio != null)
+            textoPrecio.text = "";
 
         ConfigurarBotones(false, false);
     }
 
     /// <summary>
-    /// Interacciona con el componente Button para activar o desactivar su funcionalidad.
+    /// Enciende o apaga los botones de comprar y vender según se le pida.
     /// </summary>
     private void ConfigurarBotones(bool puedeComprar, bool puedeVender)
     {
-        botonComprar.interactable = puedeComprar;
-        botonVender.interactable = puedeVender;
+        if (botonComprar != null)
+            botonComprar.interactable = puedeComprar;
+        if (botonVender != null)
+            botonVender.interactable = puedeVender;
     }
 
     /// <summary>
-    /// Ejecuta la compra, descuenta dinero, añade a mochila y reproduce sonido.
+    /// Comprueba si el jugador tiene oro, se lo cobra, le guarda el objeto y emite el sonido comercial.
     /// </summary>
     private void ComprarItem()
     {
-        if (itemSeleccionado == null || !seleccionDesdeTienda)
-            return;
+        int dineroActual;
+        bool anadido;
 
-        int dineroActual = GameManager.Instance.ObtenerDinero();
-
-        if (dineroActual >= itemSeleccionado.precioVenta)
+        if (itemSeleccionado != null && seleccionDesdeTienda)
         {
-            bool anadido = InventorySystem.Instance.AnadirObjeto(itemSeleccionado);
-            if (anadido)
+            dineroActual = GameManager.Instance.ObtenerDinero();
+
+            if (dineroActual >= itemSeleccionado.precioVenta)
             {
-                GameManager.Instance.AnadirDinero(-itemSeleccionado.precioVenta);
-                if (SoundManager.Instance != null)
-                    SoundManager.Instance.ReproducirComprar();
+                anadido = InventorySystem.Instance.AnadirObjeto(itemSeleccionado);
+                if (anadido)
+                {
+                    GameManager.Instance.AnadirDinero(-itemSeleccionado.precioVenta);
+                    if (SoundManager.Instance != null)
+                    {
+                        SoundManager.Instance.ReproducirComprar();
+                    }
+                }
             }
+            else
+            {
+                Debug.LogWarning(
+                    "El jugador intentó comprar un objeto sin tener dinero suficiente."
+                );
+            }
+        }
+        else
+        {
+            Debug.LogWarning(
+                "Se pulsó comprar pero no hay objeto seleccionado válido de la tienda."
+            );
         }
     }
 
     /// <summary>
-    /// Ejecuta la venta, retira de la mochila, suma dinero y reproduce sonido.
+    /// Aumenta el dinero del jugador y elimina el objeto de la mochila emitiendo el sonido de venta.
     /// </summary>
     private void VenderItem()
     {
-        if (itemSeleccionado == null || seleccionDesdeTienda || indiceInventarioSeleccionado == -1)
-            return;
+        int gananciaFinal;
 
-        int gananciaFinal = Mathf.RoundToInt(
-            itemSeleccionado.precioVenta * GameManager.Instance.bufoPrecioVenta
-        );
-        GameManager.Instance.AnadirDinero(gananciaFinal);
-        InventorySystem.Instance.LimpiarCasilla(indiceInventarioSeleccionado);
+        if (itemSeleccionado != null && !seleccionDesdeTienda && indiceInventarioSeleccionado != -1)
+        {
+            gananciaFinal = Mathf.RoundToInt(
+                itemSeleccionado.precioVenta * GameManager.Instance.bufoPrecioVenta
+            );
+            GameManager.Instance.AnadirDinero(gananciaFinal);
+            InventorySystem.Instance.LimpiarCasilla(indiceInventarioSeleccionado);
 
-        if (SoundManager.Instance != null)
-            SoundManager.Instance.ReproducirVender();
-        LimpiarPreview();
+            if (SoundManager.Instance != null)
+            {
+                SoundManager.Instance.ReproducirVender();
+            }
+
+            LimpiarPreview();
+        }
+        else
+        {
+            Debug.LogWarning(
+                "No se puede vender un objeto que no está bien seleccionado desde la mochila."
+            );
+        }
     }
 }

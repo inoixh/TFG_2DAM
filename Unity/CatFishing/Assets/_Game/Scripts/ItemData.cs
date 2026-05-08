@@ -1,5 +1,8 @@
 using UnityEngine;
 
+/// <summary>
+/// Niveles de rareza disponibles para todos los elementos del juego.
+/// </summary>
 public enum Rareza
 {
     Comun,
@@ -10,33 +13,45 @@ public enum Rareza
 }
 
 /// <summary>
-/// Métodos de extensión para el enumerador Rareza.
-/// Devuelve el texto formateado con emojis y colores para TextMeshPro.
+/// Contiene herramientas adicionales para trabajar con las rarezas.
 /// </summary>
 public static class RarezaExtensions
 {
+    /// <summary>
+    /// Traduce la rareza a un texto decorado con color y formato visual para la interfaz.
+    /// </summary>
     public static string NombreFormateado(this Rareza rareza)
     {
+        string resultado;
+
         switch (rareza)
         {
             case Rareza.Comun:
-                return "<color=#55FF55>Común</color>";
+                resultado = "<color=#55FF55>Común</color>";
+                break;
             case Rareza.Raro:
-                return "<color=#5555FF>Raro</color>";
+                resultado = "<color=#5555FF>Raro</color>";
+                break;
             case Rareza.Especial:
-                return "<color=#FFAA00>Especial</color>";
+                resultado = "<color=#FFAA00>Especial</color>";
+                break;
             case Rareza.Epico:
-                return "<color=#AA55FF>Épico</color>";
+                resultado = "<color=#AA55FF>Épico</color>";
+                break;
             case Rareza.Legendario:
-                return "<color=#FFFF55>Legendario</color>";
+                resultado = "<color=#FFFF55>Legendario</color>";
+                break;
             default:
-                return "Común";
+                resultado = "Común";
+                break;
         }
+
+        return resultado;
     }
 }
 
 /// <summary>
-/// Contenedor de datos para los objetos del juego (peces, cañas, etc.).
+/// Molde de información para los peces, basura y cañas de pescar.
 /// </summary>
 [CreateAssetMenu(fileName = "NuevoItem", menuName = "Pesca/Nuevo Item")]
 public class ItemData : ScriptableObject

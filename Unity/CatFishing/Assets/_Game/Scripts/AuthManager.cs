@@ -8,7 +8,7 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Gestiona la autenticación de usuarios, registro, inicio de sesión y conexión con Firestore.
+/// Gestiona el registro, el inicio de sesión y la conexión del usuario con la base de datos.
 /// </summary>
 public class AuthManager : MonoBehaviour
 {
@@ -36,6 +36,9 @@ public class AuthManager : MonoBehaviour
     private FirebaseAuth auth;
     private FirebaseFirestore db;
 
+    /// <summary>
+    /// Prepara las herramientas de base de datos y comprueba si hay una sesión guardada al abrir el juego.
+    /// </summary>
     void Start()
     {
         auth = FirebaseAuth.DefaultInstance;
@@ -53,7 +56,7 @@ public class AuthManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Muestra el panel de inicio de sesión y oculta el resto.
+    /// Activa la pantalla para iniciar sesión y oculta las demás.
     /// </summary>
     public void ShowLoginPanel()
     {
@@ -63,7 +66,7 @@ public class AuthManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Muestra el panel de registro de nueva cuenta y oculta el resto.
+    /// Activa la pantalla para crear una cuenta nueva y oculta las demás.
     /// </summary>
     public void ShowRegisterPanel()
     {
@@ -73,7 +76,7 @@ public class AuthManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Muestra el menú principal del juego tras una autenticación exitosa.
+    /// Activa el menú principal del juego tras confirmar los datos del usuario.
     /// </summary>
     public void ShowMainMenu()
     {
@@ -85,11 +88,14 @@ public class AuthManager : MonoBehaviour
         {
             FetchUserProfile(auth.CurrentUser.UserId);
         }
+        else
+        {
+            Debug.LogWarning("No se puede cargar el perfil porque no hay usuario activo.");
+        }
     }
 
     /// <summary>
-    /// Descarga y muestra el nombre de usuario desde Firestore usando su UID.
-    /// Incluye comprobación segura para evitar quedarse congelado en 'Loading...'.
+    /// Descarga el nombre del usuario desde la base de datos usando su identificador.
     /// </summary>
     private void FetchUserProfile(string uid)
     {
@@ -103,23 +109,32 @@ public class AuthManager : MonoBehaviour
                 if (task.IsFaulted || task.IsCanceled)
                 {
                     loggedInUsernameText.text = "@Usuario";
-                    return;
-                }
-
-                DocumentSnapshot snap = task.Result;
-                if (snap.Exists && snap.TryGetValue("username", out string username))
-                {
-                    loggedInUsernameText.text = "@" + username;
+                    Debug.LogWarning(
+                        "Error al conectar con la base de datos para obtener el perfil."
+                    );
                 }
                 else
                 {
-                    loggedInUsernameText.text = "@Usuario";
+                    DocumentSnapshot snap = task.Result;
+                    string username;
+
+                    if (snap.Exists && snap.TryGetValue("username", out username))
+                    {
+                        loggedInUsernameText.text = "@" + username;
+                    }
+                    else
+                    {
+                        loggedInUsernameText.text = "@Usuario";
+                        Debug.LogWarning(
+                            "El documento del usuario no existe o no tiene nombre registrado."
+                        );
+                    }
                 }
             });
     }
 
     /// <summary>
-    /// Valida los campos e intenta iniciar sesión con Firebase Auth.
+    /// Comprueba que los campos tengan texto e intenta iniciar sesión en la cuenta.
     /// </summary>
     public void OnLoginButtonClicked()
     {
@@ -129,29 +144,32 @@ public class AuthManager : MonoBehaviour
         if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(password))
         {
             loginFeedbackText.text = "<color=red>Por favor, rellena todos los campos.</color>";
-            return;
         }
+        else
+        {
+            loginFeedbackText.text = "<color=green>Iniciando sesión...</color>";
 
-        loginFeedbackText.text = "<color=green>Iniciando sesión...</color>";
-
-        auth.SignInWithEmailAndPasswordAsync(email, password)
-            .ContinueWithOnMainThread(task =>
-            {
-                if (task.IsCanceled || task.IsFaulted)
+            auth.SignInWithEmailAndPasswordAsync(email, password)
+                .ContinueWithOnMainThread(task =>
                 {
-                    loginFeedbackText.text =
-                        "<color=red>Error: Email o contraseña incorrectos.</color>";
-                    return;
-                }
-
-                PlayerPrefs.SetInt("RememberMe", rememberMeToggle.isOn ? 1 : 0);
-                PlayerPrefs.Save();
-                ShowMainMenu();
-            });
+                    if (task.IsCanceled || task.IsFaulted)
+                    {
+                        loginFeedbackText.text =
+                            "<color=red>Error: Email o contraseña incorrectos.</color>";
+                        Debug.LogWarning("Fallo en la autenticación del login.");
+                    }
+                    else
+                    {
+                        PlayerPrefs.SetInt("RememberMe", rememberMeToggle.isOn ? 1 : 0);
+                        PlayerPrefs.Save();
+                        ShowMainMenu();
+                    }
+                });
+        }
     }
 
     /// <summary>
-    /// Valida el formato de los datos introducidos y registra un nuevo usuario en Firebase.
+    /// Revisa que los datos cumplan las normas e intenta crear un usuario nuevo.
     /// </summary>
     public void OnRegisterButtonClicked()
     {
@@ -168,54 +186,51 @@ public class AuthManager : MonoBehaviour
         )
         {
             regFeedbackText.text = "<color=red>Por favor, rellena todos los campos.</color>";
-            return;
         }
-
-        if (!Regex.IsMatch(email, @"^[^@\s]+@[^@\s]+\.[^@\s]+$"))
+        else if (!Regex.IsMatch(email, @"^[^@\s]+@[^@\s]+\.[^@\s]+$"))
         {
             regFeedbackText.text = "<color=red>Dirección email no válida.</color>";
-            return;
         }
-
-        if (phone.Length != 9)
+        else if (phone.Length != 9)
         {
             regFeedbackText.text =
                 "<color=red>El número telefónico debe tener al menos 9 caracteres.</color>";
-            return;
         }
-
-        if (!Regex.IsMatch(user, @"^[a-zA-Z0-9]+$") || !Regex.IsMatch(password, @"^[a-zA-Z0-9]+$"))
+        else if (
+            !Regex.IsMatch(user, @"^[a-zA-Z0-9]+$") || !Regex.IsMatch(password, @"^[a-zA-Z0-9]+$")
+        )
         {
             regFeedbackText.text =
                 "<color=red>El nombre de usuario y contraseña solo pueden contener letras y números.</color>";
-            return;
         }
-
-        if (password.Length < 6)
+        else if (password.Length < 6)
         {
             regFeedbackText.text =
                 "<color=red>La contraseña debe ser de al menos 6 caracteres.</color>";
-            return;
         }
+        else
+        {
+            regFeedbackText.text = "<color=green>Creando cuenta...</color>";
 
-        regFeedbackText.text = "<color=green>Creando cuenta...</color>";
-
-        auth.CreateUserWithEmailAndPasswordAsync(email, password)
-            .ContinueWithOnMainThread(task =>
-            {
-                if (task.IsCanceled || task.IsFaulted)
+            auth.CreateUserWithEmailAndPasswordAsync(email, password)
+                .ContinueWithOnMainThread(task =>
                 {
-                    regFeedbackText.text = "<color=red>Error al crear la cuenta.</color>";
-                    return;
-                }
-
-                FirebaseUser newUser = task.Result.User;
-                SaveUserDataToFirestore(newUser.UserId, user, email, phone);
-            });
+                    if (task.IsCanceled || task.IsFaulted)
+                    {
+                        regFeedbackText.text = "<color=red>Error al crear la cuenta.</color>";
+                        Debug.LogWarning("Fallo al registrar al nuevo usuario.");
+                    }
+                    else
+                    {
+                        FirebaseUser newUser = task.Result.User;
+                        SaveUserDataToFirestore(newUser.UserId, user, email, phone);
+                    }
+                });
+        }
     }
 
     /// <summary>
-    /// Guarda los datos adicionales del usuario recién registrado en Firestore.
+    /// Crea un documento en la base de datos con la información personal del nuevo usuario.
     /// </summary>
     private void SaveUserDataToFirestore(string uid, string username, string email, string phone)
     {
@@ -250,12 +265,13 @@ public class AuthManager : MonoBehaviour
                 else
                 {
                     regFeedbackText.text = "<color=red>Error al guardar los datos.</color>";
+                    Debug.LogWarning("No se pudo escribir el documento en Firestore.");
                 }
             });
     }
 
     /// <summary>
-    /// Cierra la sesión activa en Firebase y redirige al panel de login.
+    /// Borra los datos locales y finaliza la sesión activa del jugador.
     /// </summary>
     public void OnLogoutButtonClicked()
     {

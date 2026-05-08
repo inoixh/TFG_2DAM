@@ -8,8 +8,7 @@ using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 /// <summary>
-/// Gestiona la navegación del menú principal, el audio de la interfaz y la lógica
-/// de carga y creación de partidas guardadas (Save Slots) conectadas a Firestore.
+/// Gestiona las pantallas de inicio y permite al jugador elegir o crear su partida.
 /// </summary>
 public class MenuManager : MonoBehaviour
 {
@@ -24,6 +23,9 @@ public class MenuManager : MonoBehaviour
     private FirebaseFirestore db;
     private FirebaseAuth auth;
 
+    /// <summary>
+    /// Prepara las herramientas de la base de datos al encender el menú.
+    /// </summary>
     private void Start()
     {
         db = FirebaseFirestore.DefaultInstance;
@@ -31,113 +33,150 @@ public class MenuManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Oculta el menú principal, muestra el panel de selección de partidas
-    /// y solicita la descarga de datos a la base de datos.
+    /// Muestra la pantalla para elegir partida y pide los datos a internet.
     /// </summary>
     public void OpenSaveSlotsPanel()
     {
-        saveSlotsPanel.SetActive(true);
-        CargarDatosSlots();
-    }
-
-    /// <summary>
-    /// Oculta el panel de partidas y vuelve al menú principal.
-    /// </summary>
-    public void CloseSaveSlotsPanel()
-    {
-        saveSlotsPanel.SetActive(false);
-    }
-
-    /// <summary>
-    /// Consulta Firestore para comprobar el estado de los 3 slots de guardado.
-    /// Actualiza la UI mostrando los datos de la partida o habilitando la creación de una nueva.
-    /// </summary>
-    private void CargarDatosSlots()
-    {
-        if (auth.CurrentUser == null)
-            return;
-        string uid = auth.CurrentUser.UserId;
-
-        for (int i = 0; i < 3; i++)
+        if (saveSlotsPanel != null)
         {
-            int index = i;
-            textosSlots[index].text = "Cargando...";
-            botonesSlots[index].interactable = false;
-
-            DocumentReference docRef = db.Collection("users")
-                .Document(uid)
-                .Collection("save_slots")
-                .Document("slot_" + index);
-
-            docRef
-                .GetSnapshotAsync()
-                .ContinueWithOnMainThread(task =>
-                {
-                    botonesSlots[index].interactable = true;
-
-                    if (task.IsCompleted && !task.IsFaulted && task.Result.Exists)
-                    {
-                        DocumentSnapshot snap = task.Result;
-                        int nivel = snap.GetValue<int>("lvl");
-                        int dinero = snap.GetValue<int>("money");
-
-                        textosSlots[index].text =
-                            $"Partida {index + 1}\n<size=80%>Nivel {nivel} - Monedas: {dinero}</size>";
-
-                        botonesSlots[index].onClick.RemoveAllListeners();
-                        botonesSlots[index].onClick.AddListener(() => IniciarPartida(index));
-                    }
-                    else
-                    {
-                        textosSlots[index].text =
-                            $"Partida {index + 1}\n<color=#A8E6CF><size=80%>+ Nueva Partida</size></color>";
-
-                        botonesSlots[index].onClick.RemoveAllListeners();
-                        botonesSlots[index].onClick.AddListener(() => CrearNuevaPartida(index));
-                    }
-                });
+            saveSlotsPanel.SetActive(true);
+            CargarDatosSlots();
+        }
+        else
+        {
+            Debug.LogWarning("No se asignó el panel de partidas en el Inspector.");
         }
     }
 
     /// <summary>
-    /// Crea un nuevo documento en la subcolección save_slots con los valores iniciales
-    /// por defecto y automáticamente inicia el juego.
+    /// Oculta la pantalla de selección de partida para volver al menú principal.
     /// </summary>
-    private void CrearNuevaPartida(int slotIndex)
+    public void CloseSaveSlotsPanel()
     {
-        if (auth.CurrentUser == null)
-            return;
-        string uid = auth.CurrentUser.UserId;
-
-        botonesSlots[slotIndex].interactable = false;
-        textosSlots[slotIndex].text = "Creando mundo...";
-
-        Dictionary<string, object> nuevaPartida = new Dictionary<string, object>
+        if (saveSlotsPanel != null)
         {
-            { "lvl", 1 },
-            { "xp", 0 },
-            { "money", 0 },
-            { "church_streak", 0 },
-            { "tavern_lvl", 1 },
-            { "last_login", FieldValue.ServerTimestamp },
-        };
-
-        db.Collection("users")
-            .Document(uid)
-            .Collection("save_slots")
-            .Document("slot_" + slotIndex)
-            .SetAsync(nuevaPartida)
-            .ContinueWithOnMainThread(task =>
-            {
-                if (task.IsCompleted)
-                {
-                    IniciarPartida(slotIndex);
-                }
-            });
+            saveSlotsPanel.SetActive(false);
+        }
+        else
+        {
+            Debug.LogWarning("No se asignó el panel de partidas en el Inspector.");
+        }
     }
 
     /// <summary>
-    /// Guarda en las preferencias locales el slot seleccionado, invoca la transición musical y carga la escena del juego.
+    /// Descarga el progreso de los tres huecos de guardado y actualiza los botones visuales.
+    /// </summary>
+    private void CargarDatosSlots()
+    {
+        string uid;
+        DocumentReference docRef;
+
+        if (auth.CurrentUser != null)
+        {
+            uid = auth.CurrentUser.UserId;
+
+            for (int i = 0; i < 3; i++)
+            {
+                int index = i;
+
+                textosSlots[index].text = "Cargando...";
+                botonesSlots[index].interactable = false;
+
+                docRef = db.Collection("users")
+                    .Document(uid)
+                    .Collection("save_slots")
+                    .Document("slot_" + index);
+
+                docRef
+                    .GetSnapshotAsync()
+                    .ContinueWithOnMainThread(task =>
+                    {
+                        DocumentSnapshot snap;
+                        int nivel;
+                        int dinero;
+
+                        botonesSlots[index].interactable = true;
+
+                        if (task.IsCompleted && !task.IsFaulted && task.Result.Exists)
+                        {
+                            snap = task.Result;
+                            nivel = snap.GetValue<int>("lvl");
+                            dinero = snap.GetValue<int>("money");
+
+                            textosSlots[index].text =
+                                $"Partida {index + 1}\n<size=80%>Nivel {nivel} - Monedas: {dinero}</size>";
+
+                            botonesSlots[index].onClick.RemoveAllListeners();
+                            botonesSlots[index].onClick.AddListener(() => IniciarPartida(index));
+                        }
+                        else
+                        {
+                            textosSlots[index].text =
+                                $"Partida {index + 1}\n<color=#A8E6CF><size=80%>+ Nueva Partida</size></color>";
+
+                            botonesSlots[index].onClick.RemoveAllListeners();
+                            botonesSlots[index].onClick.AddListener(() => CrearNuevaPartida(index));
+                        }
+                    });
+            }
+        }
+        else
+        {
+            Debug.LogWarning("No hay un usuario activo para cargar las partidas.");
+        }
+    }
+
+    /// <summary>
+    /// Genera los datos base de un mundo nuevo en internet y entra al juego automáticamente.
+    /// </summary>
+    private void CrearNuevaPartida(int slotIndex)
+    {
+        string uid;
+        Dictionary<string, object> nuevaPartida;
+
+        if (auth.CurrentUser != null)
+        {
+            uid = auth.CurrentUser.UserId;
+
+            botonesSlots[slotIndex].interactable = false;
+            textosSlots[slotIndex].text = "Creando mundo...";
+
+            nuevaPartida = new Dictionary<string, object>
+            {
+                { "lvl", 1 },
+                { "xp", 0 },
+                { "money", 0 },
+                { "church_streak", 0 },
+                { "tavern_lvl", 1 },
+                { "last_login", FieldValue.ServerTimestamp },
+            };
+
+            db.Collection("users")
+                .Document(uid)
+                .Collection("save_slots")
+                .Document("slot_" + slotIndex)
+                .SetAsync(nuevaPartida)
+                .ContinueWithOnMainThread(task =>
+                {
+                    if (task.IsCompleted)
+                    {
+                        IniciarPartida(slotIndex);
+                    }
+                    else
+                    {
+                        Debug.LogWarning("Error al crear la nueva partida en la base de datos.");
+                        botonesSlots[slotIndex].interactable = true;
+                    }
+                });
+        }
+        else
+        {
+            Debug.LogWarning("No hay un usuario activo para crear una partida.");
+        }
+    }
+
+    /// <summary>
+    /// Guarda el número de partida en la memoria local y arranca la escena principal.
     /// </summary>
     private void IniciarPartida(int slotIndex)
     {
@@ -153,7 +192,7 @@ public class MenuManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Carga una nueva escena por su nombre en Unity.
+    /// Transiciona el juego a la pantalla que se indique por texto.
     /// </summary>
     public void changeScene(string scene)
     {

@@ -3,8 +3,7 @@ using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 /// <summary>
-/// Representa un servicio o consumible a la venta dentro de la interfaz de la Taberna.
-/// Gestiona la comunicación con el TavernManager y los tooltips visuales.
+/// Muestra un botón con la imagen de la bebida en el menú de la taberna.
 /// </summary>
 public class ServiceSlot
     : MonoBehaviour,
@@ -18,20 +17,25 @@ public class ServiceSlot
     private ServiceData datosServicio;
 
     /// <summary>
-    /// Asigna la información del consumible a esta casilla y activa visualmente su icono.
+    /// Vincula la materia prima real a su silueta representativa y la ilumina.
     /// </summary>
     public void ConfigurarSlot(ServiceData servicio)
     {
         datosServicio = servicio;
+
         if (iconoServicio != null && servicio != null)
         {
             iconoServicio.sprite = servicio.icono;
             iconoServicio.color = Color.white;
         }
+        else
+        {
+            Debug.LogWarning("Incapacidad visual para componer la carta de consumo de la taberna.");
+        }
     }
 
     /// <summary>
-    /// Notifica al gestor de la taberna que el jugador ha seleccionado este consumible.
+    /// Traspasa su alma de contenido a la previsualización al recibir un estímulo primario táctil del jugador.
     /// </summary>
     public void OnPointerClick(PointerEventData eventData)
     {
@@ -39,26 +43,34 @@ public class ServiceSlot
         {
             TavernManager.Instance.SeleccionarServicio(datosServicio);
         }
+        else
+        {
+            Debug.LogWarning("O la bebida carece de consistencia o el tabernero desapareció.");
+        }
     }
 
     /// <summary>
-    /// Extrae la información del consumible y solicita al UIManager que la muestre temporalmente.
+    /// Ensancha textualmente su identificación temporal por la presencia superpuesta.
     /// </summary>
     public void OnPointerEnter(PointerEventData eventData)
     {
+        string textoInfo;
+
         if (datosServicio != null && UIManager.Instance != null)
         {
-            string textoInfo = $"{datosServicio.nombreDisplay} \n<size=70%>Consumible</size>";
+            textoInfo = $"{datosServicio.nombreDisplay} \n<size=70%>Consumible</size>";
             UIManager.Instance.MostrarTooltipTemporal(textoInfo, 1.5f);
         }
     }
 
     /// <summary>
-    /// Oculta el tooltip de información al retirar el ratón de la casilla.
+    /// Borra cualquier señal indicativa sobrante cuando el jugador despeja su mirada central.
     /// </summary>
     public void OnPointerExit(PointerEventData eventData)
     {
         if (UIManager.Instance != null)
+        {
             UIManager.Instance.OcultarTooltip();
+        }
     }
 }

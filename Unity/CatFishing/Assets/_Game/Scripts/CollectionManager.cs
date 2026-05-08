@@ -7,8 +7,7 @@ using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 /// <summary>
-/// Gestiona la visualización del álbum del jugador, separando entidades (Gatos y Peces).
-/// Descarga el catálogo completo de gatos, lo ordena por rareza y lo cruza con el progreso guardado.
+/// Muestra el álbum del jugador con los gatos y peces descubiertos.
 /// </summary>
 public class CollectionManager : MonoBehaviour
 {
@@ -21,11 +20,11 @@ public class CollectionManager : MonoBehaviour
     public Sprite iconoBloqueadoGato;
     public Sprite iconoBloqueadoPez;
 
-    [Header("Gestión de Visibilidad (Scroll Views completos)")]
+    [Header("Gestión de Visibilidad")]
     public GameObject scrollViewPeces;
     public GameObject scrollViewGatos;
 
-    [Header("Gestión de Instanciación (Objetos Content)")]
+    [Header("Gestión de Instanciación")]
     public Transform contenidoPeces;
     public Transform contenidoGatos;
 
@@ -48,37 +47,59 @@ public class CollectionManager : MonoBehaviour
     public TextMeshProUGUI textoAfinidadGato;
 
     public bool coleccionAbierta { get; private set; }
+
     private bool catalogoGatosCargado = false;
     private bool uiGenerada = false;
-
     private List<CatData> todosLosGatos = new List<CatData>();
 
+    /// <summary>
+    /// Establece este script como el gestor principal y destruye copias repetidas.
+    /// </summary>
     void Awake()
     {
         if (Instance == null)
+        {
             Instance = this;
+        }
         else
+        {
             Destroy(gameObject);
+        }
     }
 
+    /// <summary>
+    /// Prepara los botones y pide a la base de datos la información de los gatos.
+    /// </summary>
     void Start()
     {
         if (panelColeccion != null)
+        {
             panelColeccion.SetActive(false);
+        }
+
         if (botonCerrar != null)
+        {
             botonCerrar.onClick.AddListener(CerrarColeccion);
+        }
 
         CargarCatalogoGatos();
     }
 
+    /// <summary>
+    /// Escucha el teclado para abrir o cerrar el álbum pulsando teclas específicas.
+    /// </summary>
     void Update()
     {
         if (Keyboard.current.cKey.wasPressedThisFrame)
         {
             if (coleccionAbierta)
+            {
                 CerrarColeccion();
+            }
             else
+            {
                 AbrirColeccion();
+            }
         }
         else if (coleccionAbierta && Keyboard.current.escapeKey.wasPressedThisFrame)
         {
@@ -87,89 +108,122 @@ public class CollectionManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Descarga la base de datos de gatos desde Firestore para poder construir el álbum completo.
+    /// Descarga la lista completa de gatos desde la nube y los guarda en la memoria.
     /// </summary>
     private async void CargarCatalogoGatos()
     {
-        if (catalogoGatosCargado)
-            return;
+        FirebaseFirestore db;
+        QuerySnapshot snapshot;
+        Dictionary<string, object> dict;
+        CatData gato;
+        string rarezaStr;
 
-        FirebaseFirestore db = FirebaseFirestore.DefaultInstance;
-
-        try
+        if (!catalogoGatosCargado)
         {
-            QuerySnapshot snapshot = await db.Collection("cats").GetSnapshotAsync();
-            foreach (DocumentSnapshot doc in snapshot.Documents)
+            db = FirebaseFirestore.DefaultInstance;
+
+            try
             {
-                Dictionary<string, object> dict = doc.ToDictionary();
-                CatData gato = ScriptableObject.CreateInstance<CatData>();
+                snapshot = await db.Collection("cats").GetSnapshotAsync();
 
-                gato.ID = doc.Id;
-                if (dict.ContainsKey("name"))
-                    gato.nombreDisplay = dict["name"].ToString();
-                if (dict.ContainsKey("description"))
-                    gato.descripcion = dict["description"].ToString();
-                if (dict.ContainsKey("fav_fish_id"))
-                    gato.pezFavoritoID = dict["fav_fish_id"].ToString();
+                foreach (DocumentSnapshot doc in snapshot.Documents)
+                {
+                    dict = doc.ToDictionary();
+                    gato = ScriptableObject.CreateInstance<CatData>();
 
-                string rarezaStr = dict.ContainsKey("rarity")
-                    ? dict["rarity"].ToString().ToLower()
-                    : "común";
-                gato.rareza = DeterminarRareza(rarezaStr);
+                    gato.ID = doc.Id;
 
-                gato.icono = Resources.Load<Sprite>("CatIcons/" + gato.ID);
-                todosLosGatos.Add(gato);
+                    if (dict.ContainsKey("name"))
+                    {
+                        gato.nombreDisplay = dict["name"].ToString();
+                    }
+                    if (dict.ContainsKey("description"))
+                    {
+                        gato.descripcion = dict["description"].ToString();
+                    }
+                    if (dict.ContainsKey("fav_fish_id"))
+                    {
+                        gato.pezFavoritoID = dict["fav_fish_id"].ToString();
+                    }
+
+                    if (dict.ContainsKey("rarity"))
+                    {
+                        rarezaStr = dict["rarity"].ToString().ToLower();
+                    }
+                    else
+                    {
+                        rarezaStr = "común";
+                    }
+
+                    gato.rareza = DeterminarRareza(rarezaStr);
+                    gato.icono = Resources.Load<Sprite>("CatIcons/" + gato.ID);
+
+                    todosLosGatos.Add(gato);
+                }
+
+                catalogoGatosCargado = true;
             }
-            catalogoGatosCargado = true;
-        }
-        catch (System.Exception e)
-        {
-            Debug.LogError("Error Colección Gatos: " + e.Message);
+            catch (System.Exception e)
+            {
+                Debug.LogWarning("Error al cargar los gatos de la colección: " + e.Message);
+            }
         }
     }
 
     /// <summary>
-    /// Instancia las casillas gráficas de peces y gatos basándose en los datos descargados
-    /// y en el progreso guardado del jugador, ordenándolos previamente por rareza.
+    /// Crea las casillas visuales ordenadas por rareza según los datos cargados.
     /// </summary>
     private void GenerarUI()
     {
+        List<ItemData> pecesOrdenados;
+        bool desbloqueadoPez;
+        GameObject slotGOPez;
+        bool desbloqueadoGato;
+        GameObject slotGOGato;
+
         if (
-            uiGenerada
-            || !catalogoGatosCargado
-            || FishManager.Instance == null
-            || !FishManager.Instance.pecesCargados
+            !uiGenerada
+            && catalogoGatosCargado
+            && FishManager.Instance != null
+            && FishManager.Instance.pecesCargados
         )
-            return;
-
-        List<ItemData> pecesOrdenados = new List<ItemData>(FishManager.Instance.todosLosPeces);
-        pecesOrdenados.Sort((p1, p2) => p1.rareza.CompareTo(p2.rareza));
-
-        foreach (ItemData pez in pecesOrdenados)
         {
-            bool desbloqueado = GameManager.Instance.pecesCapturados.ContainsKey(pez.ID);
-            GameObject slotGO = Instantiate(prefabCollectionSlot, contenidoPeces);
-            slotGO.transform.localScale = Vector3.one;
-            slotGO
-                .GetComponent<CollectionSlot>()
-                .ConfigurarPez(pez, desbloqueado, iconoBloqueadoPez);
+            pecesOrdenados = new List<ItemData>(FishManager.Instance.todosLosPeces);
+            pecesOrdenados.Sort((p1, p2) => p1.rareza.CompareTo(p2.rareza));
+
+            foreach (ItemData pez in pecesOrdenados)
+            {
+                desbloqueadoPez = GameManager.Instance.pecesCapturados.ContainsKey(pez.ID);
+                slotGOPez = Instantiate(prefabCollectionSlot, contenidoPeces);
+                slotGOPez.transform.localScale = Vector3.one;
+                slotGOPez
+                    .GetComponent<CollectionSlot>()
+                    .ConfigurarPez(pez, desbloqueadoPez, iconoBloqueadoPez);
+            }
+
+            todosLosGatos.Sort((g1, g2) => g1.rareza.CompareTo(g2.rareza));
+
+            foreach (CatData gato in todosLosGatos)
+            {
+                desbloqueadoGato = GameManager.Instance.afinidadGatos.ContainsKey(gato.ID);
+                slotGOGato = Instantiate(prefabCollectionSlot, contenidoGatos);
+                slotGOGato.transform.localScale = Vector3.one;
+                slotGOGato
+                    .GetComponent<CollectionSlot>()
+                    .ConfigurarGato(gato, desbloqueadoGato, iconoBloqueadoGato);
+            }
+
+            uiGenerada = true;
         }
-
-        todosLosGatos.Sort((g1, g2) => g1.rareza.CompareTo(g2.rareza));
-
-        foreach (CatData gato in todosLosGatos)
+        else
         {
-            bool desbloqueado = GameManager.Instance.afinidadGatos.ContainsKey(gato.ID);
-            GameObject slotGO = Instantiate(prefabCollectionSlot, contenidoGatos);
-            slotGO.transform.localScale = Vector3.one;
-            slotGO
-                .GetComponent<CollectionSlot>()
-                .ConfigurarGato(gato, desbloqueado, iconoBloqueadoGato);
+            Debug.LogWarning("No se puede generar la interfaz porque faltan datos por cargar.");
         }
-
-        uiGenerada = true;
     }
 
+    /// <summary>
+    /// Muestra el panel del álbum y bloquea los movimientos del jugador.
+    /// </summary>
     public void AbrirColeccion()
     {
         coleccionAbierta = true;
@@ -177,10 +231,16 @@ public class CollectionManager : MonoBehaviour
         BloquearControles(true);
 
         if (!uiGenerada)
+        {
             GenerarUI();
+        }
+
         MostrarPestañaPeces();
     }
 
+    /// <summary>
+    /// Oculta el panel del álbum y devuelve el control al jugador.
+    /// </summary>
     public void CerrarColeccion()
     {
         coleccionAbierta = false;
@@ -189,7 +249,7 @@ public class CollectionManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Cambia la visualización a la categoría de Peces, forzando la ocultación de la sección contraria.
+    /// Activa la sección visual de los peces y apaga la de los gatos.
     /// </summary>
     public void MostrarPestañaPeces()
     {
@@ -207,7 +267,7 @@ public class CollectionManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Cambia la visualización a la categoría de Gatos, forzando la ocultación de la sección contraria.
+    /// Activa la sección visual de los gatos y apaga la de los peces.
     /// </summary>
     public void MostrarPestañaGatos()
     {
@@ -225,43 +285,58 @@ public class CollectionManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Rellena el panel lateral con los datos extraídos de un pez desbloqueado.
+    /// Rellena el marco de detalles lateral con la información del pez pulsado.
     /// </summary>
     public void SeleccionarPez(ItemData pez)
     {
         previewPezImagen.sprite = pez.icono;
         previewPezNombre.text = pez.nombreDisplay;
-        previewPezRareza.text = pez.rareza.NombreFormateado(); // <- Uso del nuevo método
+        previewPezRareza.text = pez.rareza.NombreFormateado();
         previewPezDesc.text = pez.descripcion;
         previewPezEstadistica.text =
             "Veces pescado: " + GameManager.Instance.pecesCapturados[pez.ID];
     }
 
     /// <summary>
-    /// Rellena el panel lateral con los datos extraídos de un gato desbloqueado, incluyendo cálculo de afinidad.
+    /// Rellena el marco de detalles lateral con la información del gato pulsado.
     /// </summary>
     public void SeleccionarGato(CatData gato)
     {
+        ItemData pezFav;
+        int xpTotal;
+
         previewGatoImagen.sprite = gato.icono;
         previewGatoNombre.text = gato.nombreDisplay;
-        previewGatoRareza.text = gato.rareza.NombreFormateado(); // <- Uso del nuevo método
+        previewGatoRareza.text = gato.rareza.NombreFormateado();
         previewGatoDesc.text = gato.descripcion;
 
-        ItemData pezFav = BuscarPezGlobal(gato.pezFavoritoID);
-        previewGatoPezFav.text = (pezFav != null ? pezFav.nombreDisplay : "Desconocido");
+        pezFav = BuscarPezGlobal(gato.pezFavoritoID);
 
-        int xpTotal = GameManager.Instance.afinidadGatos[gato.ID];
+        if (pezFav != null)
+        {
+            previewGatoPezFav.text = pezFav.nombreDisplay;
+        }
+        else
+        {
+            previewGatoPezFav.text = "Desconocido";
+        }
+
+        xpTotal = GameManager.Instance.afinidadGatos[gato.ID];
         ActualizarBarraAfinidadVisual(xpTotal);
     }
 
     /// <summary>
-    /// Reutiliza el algoritmo de cálculo de niveles para representar gráficamente el progreso de afinidad.
+    /// Mueve la barra visual calculando el nivel en base a la experiencia conseguida.
     /// </summary>
     private void ActualizarBarraAfinidadVisual(int xpTotal)
     {
-        int nivelVirtual = 1;
-        int xpRestante = xpTotal;
-        int xpRequerida = 50;
+        int nivelVirtual;
+        int xpRestante;
+        int xpRequerida;
+
+        nivelVirtual = 1;
+        xpRestante = xpTotal;
+        xpRequerida = 50;
 
         while (xpRestante >= xpRequerida && nivelVirtual < 10)
         {
@@ -271,10 +346,15 @@ public class CollectionManager : MonoBehaviour
         }
 
         if (nivelVirtual >= 10)
+        {
             xpRestante = xpRequerida;
+        }
 
         if (textoAfinidadGato)
+        {
             textoAfinidadGato.text = $"Lvl {nivelVirtual} | XP {xpRestante}/{xpRequerida}";
+        }
+
         if (barraAfinidadGato)
         {
             barraAfinidadGato.maxValue = xpRequerida;
@@ -282,6 +362,9 @@ public class CollectionManager : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Vacía la información mostrada sobre el pez seleccionado.
+    /// </summary>
     private void LimpiarPreviewPeces()
     {
         if (previewPezImagen)
@@ -296,6 +379,9 @@ public class CollectionManager : MonoBehaviour
             previewPezEstadistica.text = "";
     }
 
+    /// <summary>
+    /// Vacía la información mostrada sobre el gato seleccionado.
+    /// </summary>
     private void LimpiarPreviewGatos()
     {
         if (previewGatoImagen)
@@ -314,14 +400,24 @@ public class CollectionManager : MonoBehaviour
             barraAfinidadGato.value = 0;
     }
 
+    /// <summary>
+    /// Encuentra los datos de un pez comprobando su texto identificador.
+    /// </summary>
     private ItemData BuscarPezGlobal(string id)
     {
         foreach (ItemData pez in FishManager.Instance.todosLosPeces)
+        {
             if (pez.ID == id)
+            {
                 return pez;
+            }
+        }
         return null;
     }
 
+    /// <summary>
+    /// Convierte la palabra leída de la base de datos a una categoría válida.
+    /// </summary>
     private Rareza DeterminarRareza(string rarezaStr)
     {
         switch (rarezaStr)
@@ -343,19 +439,33 @@ public class CollectionManager : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Informa a los controles de movimiento y cámara para detener al jugador.
+    /// </summary>
     private void BloquearControles(bool estado)
     {
-        CamaraMovement cam = FindFirstObjectByType<CamaraMovement>();
-        PlayerMovement mov = FindFirstObjectByType<PlayerMovement>();
+        CamaraMovement cam;
+        PlayerMovement mov;
+
+        cam = FindFirstObjectByType<CamaraMovement>();
+        mov = FindFirstObjectByType<PlayerMovement>();
+
         if (cam != null)
         {
             cam.rotacionBloqueada = estado;
             if (estado)
+            {
                 cam.DesbloquearCursor();
+            }
             else
+            {
                 cam.BloquearCursor();
+            }
         }
+
         if (mov != null)
+        {
             mov.movimientoBloqueado = estado;
+        }
     }
 }

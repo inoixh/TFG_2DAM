@@ -5,8 +5,7 @@ using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 /// <summary>
-/// Gestor global de la interfaz de usuario.
-/// Controla el menú de pausa, los diálogos, barras de progresión y evita la superposición de interfaces.
+/// Controla todos los textos, menús y avisos que aparecen en la pantalla del jugador.
 /// </summary>
 public class UIManager : MonoBehaviour
 {
@@ -36,6 +35,9 @@ public class UIManager : MonoBehaviour
 
     private bool interaccionConsumida = false;
 
+    /// <summary>
+    /// Recaba las responsabilidades estructurales asimilando ser la cabeza global para todos los diálogos visuales emergentes.
+    /// </summary>
     void Awake()
     {
         Instance = this;
@@ -52,6 +54,9 @@ public class UIManager : MonoBehaviour
             panelPausa.SetActive(false);
     }
 
+    /// <summary>
+    /// Registra en su propia base a los emisores para poder interactuar activamente con su pulso.
+    /// </summary>
     void Start()
     {
         if (botonMenuPrincipal)
@@ -60,11 +65,14 @@ public class UIManager : MonoBehaviour
             botonSalir.onClick.AddListener(TogglePausa);
     }
 
+    /// <summary>
+    /// Permanece alerta garantizando un control puro que vigila cruces entre peticiones del teclado.
+    /// </summary>
     void Update()
     {
         interaccionConsumida = false;
 
-        if (Keyboard.current.escapeKey.wasPressedThisFrame)
+        if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
         {
             if (!HayAlgunaInterfazSecundariaAbierta())
             {
@@ -74,47 +82,67 @@ public class UIManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Actúa como semáforo. Si una interacción ocurre, bloquea al resto de elementos en el mismo frame.
+    /// Filtra sin contemplaciones las pulsaciones sobrepuestas cediendo terreno al primero que pase el corte limpio.
     /// </summary>
     public bool ConsumirInteraccion()
     {
-        if (interaccionConsumida || HayAlgunaInterfazSecundariaAbierta() || pausaAbierta)
-            return false;
+        bool resultado;
 
-        interaccionConsumida = true;
-        return true;
+        if (!interaccionConsumida && !HayAlgunaInterfazSecundariaAbierta() && !pausaAbierta)
+        {
+            interaccionConsumida = true;
+            resultado = true;
+        }
+        else
+        {
+            resultado = false;
+        }
+
+        return resultado;
     }
 
     /// <summary>
-    /// Rastrea todos los mánagers para saber si hay algún panel ocupando la pantalla.
+    /// Analiza como perro guardián todos los cuadros importantes buscando obstrucciones en el perímetro ocular.
     /// </summary>
     public bool HayAlgunaInterfazSecundariaAbierta()
     {
-        bool mercado = MarketManager.Instance != null && MarketManager.Instance.mercadoAbierto;
-        bool taberna = TavernManager.Instance != null && TavernManager.Instance.tabernaAbierta;
-        bool iglesia = ChurchManager.Instance != null && ChurchManager.Instance.iglesiaAbierta;
-        bool coleccion =
-            CollectionManager.Instance != null && CollectionManager.Instance.coleccionAbierta;
-        bool mochila = InventorySystem.Instance != null && InventorySystem.Instance.mochilaAbierta;
-        bool dialogo = panelDialogo != null && panelDialogo.activeSelf;
+        bool mercado;
+        bool taberna;
+        bool iglesia;
+        bool coleccion;
+        bool mochila;
+        bool dialogo;
+        SettingsManager sm;
+        bool settings;
 
-        SettingsManager sm = FindFirstObjectByType<SettingsManager>();
-        bool settings = sm != null && sm.settingsPanel != null && sm.settingsPanel.activeSelf;
+        mercado = MarketManager.Instance != null && MarketManager.Instance.mercadoAbierto;
+        taberna = TavernManager.Instance != null && TavernManager.Instance.tabernaAbierta;
+        iglesia = ChurchManager.Instance != null && ChurchManager.Instance.iglesiaAbierta;
+        coleccion =
+            CollectionManager.Instance != null && CollectionManager.Instance.coleccionAbierta;
+        mochila = InventorySystem.Instance != null && InventorySystem.Instance.mochilaAbierta;
+        dialogo = panelDialogo != null && panelDialogo.activeSelf;
+
+        sm = FindFirstObjectByType<SettingsManager>();
+        settings = sm != null && sm.settingsPanel != null && sm.settingsPanel.activeSelf;
 
         return mercado || taberna || iglesia || coleccion || mochila || dialogo || settings;
     }
 
     /// <summary>
-    /// Abre o cierra el menú de pausa congelando el tiempo y los controles del jugador.
+    /// Altera el ritmo de los procesos físicos inmovilizando los músculos vitales a costa del panel principal.
     /// </summary>
     private void TogglePausa()
     {
+        CamaraMovement cam;
+        PlayerMovement mov;
+
         pausaAbierta = !pausaAbierta;
         if (panelPausa != null)
             panelPausa.SetActive(pausaAbierta);
 
-        CamaraMovement cam = FindFirstObjectByType<CamaraMovement>();
-        PlayerMovement mov = FindFirstObjectByType<PlayerMovement>();
+        cam = FindFirstObjectByType<CamaraMovement>();
+        mov = FindFirstObjectByType<PlayerMovement>();
 
         if (pausaAbierta)
         {
@@ -125,7 +153,9 @@ public class UIManager : MonoBehaviour
                 cam.DesbloquearCursor();
             }
             if (mov != null)
+            {
                 mov.movimientoBloqueado = true;
+            }
         }
         else
         {
@@ -136,68 +166,94 @@ public class UIManager : MonoBehaviour
                 cam.BloquearCursor();
             }
             if (mov != null)
+            {
                 mov.movimientoBloqueado = false;
+            }
         }
     }
 
     /// <summary>
-    /// Restaura el tiempo, cambia la música y carga la escena inicial.
+    /// Fuerza su transbordo reavivando el tono melancólico para ir directos al salón original.
     /// </summary>
     private void IrMenuPrincipal()
     {
         Time.timeScale = 1f;
+
         if (SoundManager.Instance != null)
+        {
             SoundManager.Instance.ReproducirMusicaMenu();
+        }
+
         SceneManager.LoadScene(nombreEscenaMenu);
     }
 
+    /// <summary>
+    /// Descubre el globo comunicativo para plasmar la expresión conversacional.
+    /// </summary>
     public void MostrarBocadillo(string frase)
     {
-        if (panelDialogo)
+        if (panelDialogo != null)
             panelDialogo.SetActive(true);
-        if (textoDialogo)
+        if (textoDialogo != null)
             textoDialogo.text = frase;
     }
 
+    /// <summary>
+    /// Corta de raíz la muestra escénica despidiéndose de todo vestigio comunicador.
+    /// </summary>
     public void OcultarBocadillo()
     {
-        if (panelDialogo)
+        if (panelDialogo != null)
             panelDialogo.SetActive(false);
-        if (panelBarraAfinidad)
+        if (panelBarraAfinidad != null)
             panelBarraAfinidad.SetActive(false);
     }
 
+    /// <summary>
+    /// Ajusta las divisiones medidoras y alumbra con fidelidad los dígitos expuestos.
+    /// </summary>
     public void MostrarAfinidadGato(int nivel, int xpActual, int xpNecesaria)
     {
-        if (panelBarraAfinidad)
+        if (panelBarraAfinidad != null)
             panelBarraAfinidad.SetActive(true);
-        if (textoNivelAfinidad)
-            textoNivelAfinidad.text = $"Afinidad {nivel} | XP {xpActual}/{xpNecesaria}";
-        if (barraAfinidad)
+        if (textoNivelAfinidad != null)
+            textoNivelAfinidad.text = $"Afinidad Lvl {nivel} | XP {xpActual}/{xpNecesaria}";
+        if (barraAfinidad != null)
         {
             barraAfinidad.maxValue = xpNecesaria;
             barraAfinidad.value = xpActual;
         }
     }
 
+    /// <summary>
+    /// Proyecta una petición imperativa frontalmente y sin adornos en base al estímulo provocado.
+    /// </summary>
     public void MostrarInteraccion(string mensaje)
     {
-        if (textoInteraccion)
+        if (textoInteraccion != null)
         {
             textoInteraccion.gameObject.SetActive(true);
             textoInteraccion.text = mensaje;
         }
     }
 
+    /// <summary>
+    /// Extirpa la necesidad perentoria de ver la orden descolocada en lo visible.
+    /// </summary>
     public void OcultarInteraccion()
     {
-        if (textoInteraccion)
+        if (textoInteraccion != null)
+        {
             textoInteraccion.gameObject.SetActive(false);
+        }
     }
 
+    /// <summary>
+    /// Manifiesta en una burbuja de aviso una clarificación auxiliar indispensable que acompaña la señal visual.
+    /// </summary>
     public void MostrarTooltip(string mensaje)
     {
-        if (textoTooltip)
+        if (textoTooltip != null)
         {
             CancelInvoke("OcultarTooltip");
             textoTooltip.gameObject.SetActive(true);
@@ -205,18 +261,29 @@ public class UIManager : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Apalanca lo mismo que su homólogo primigenio añadiendo una condicional destructiva de tiempo para no pervivir.
+    /// </summary>
     public void MostrarTooltipTemporal(string mensaje, float tiempo)
     {
         MostrarTooltip(mensaje);
         Invoke("OcultarTooltip", tiempo);
     }
 
+    /// <summary>
+    /// Arranca de sus cimientos lo que fuera proyectado a duras penas en su propio cuadro vital.
+    /// </summary>
     public void OcultarTooltip()
     {
-        if (textoTooltip)
+        if (textoTooltip != null)
+        {
             textoTooltip.gameObject.SetActive(false);
+        }
     }
 
+    /// <summary>
+    /// Redirige al invocador para dar notoriedad y peso social a un aumento de la pericia experimentada.
+    /// </summary>
     public void MostrarSubidaNivelGlobal(int nivel)
     {
         MostrarTooltipTemporal($"¡NIVEL AUMENTADO A {nivel}!", 4f);

@@ -1,17 +1,15 @@
 using System.Collections.Generic;
-using System.Threading.Tasks;
 using Firebase.Firestore;
 using UnityEngine;
 
 /// <summary>
-/// Descarga la base de datos de peces desde Firebase y construye los objetos ItemData dinámicamente en memoria.
-/// Asigna los modelos 3D (bolsas de colores) por rareza y busca los iconos 2D automáticamente.
+/// Prepara la base de datos de los peces disponibles descargando su información desde la nube.
 /// </summary>
 public class FishManager : MonoBehaviour
 {
     public static FishManager Instance;
 
-    [Header("Modelos 3D (Bolsas por Rareza)")]
+    [Header("Modelos 3D")]
     public GameObject prefabBolsaComun;
     public GameObject prefabBolsaRara;
     public GameObject prefabBolsaEspecial;
@@ -19,7 +17,6 @@ public class FishManager : MonoBehaviour
     public GameObject prefabBolsaLegendaria;
 
     [Header("Icono por Defecto")]
-    [Tooltip("La foto que se usará si el pez aún no tiene su propia imagen generada por IA.")]
     public Sprite iconoGenerico;
 
     [HideInInspector]
@@ -28,67 +25,107 @@ public class FishManager : MonoBehaviour
     [HideInInspector]
     public bool pecesCargados = false;
 
+    /// <summary>
+    /// Asegura que solo exista un gestor de peces en toda la partida.
+    /// </summary>
     void Awake()
     {
         if (Instance == null)
+        {
             Instance = this;
+        }
         else
+        {
             Destroy(gameObject);
+        }
     }
 
+    /// <summary>
+    /// Pide la descarga de datos al encender el juego.
+    /// </summary>
     void Start()
     {
         CargarPecesDesdeFirebase();
     }
 
     /// <summary>
-    /// Se conecta a la colección "fish" de Firestore y crea los ItemData en tiempo de ejecución.
+    /// Obtiene cada pez guardado en internet y genera su molde para el inventario.
     /// </summary>
     private async void CargarPecesDesdeFirebase()
     {
-        FirebaseFirestore db = FirebaseFirestore.DefaultInstance;
-        CollectionReference pecesRef = db.Collection("fish");
+        FirebaseFirestore db;
+        CollectionReference pecesRef;
+        QuerySnapshot snapshot;
+        Dictionary<string, object> pezData;
+        ItemData nuevoPez;
+        string rarezaStr;
+        Sprite spriteUnico;
+
+        db = FirebaseFirestore.DefaultInstance;
+        pecesRef = db.Collection("fish");
 
         try
         {
-            QuerySnapshot snapshot = await pecesRef.GetSnapshotAsync();
+            snapshot = await pecesRef.GetSnapshotAsync();
 
             foreach (DocumentSnapshot doc in snapshot.Documents)
             {
-                Dictionary<string, object> pezData = doc.ToDictionary();
-
-                ItemData nuevoPez = ScriptableObject.CreateInstance<ItemData>();
+                pezData = doc.ToDictionary();
+                nuevoPez = ScriptableObject.CreateInstance<ItemData>();
                 nuevoPez.ID = doc.Id;
 
                 if (pezData.ContainsKey("name"))
+                {
                     nuevoPez.nombreDisplay = pezData["name"].ToString();
-                if (pezData.ContainsKey("description"))
-                    nuevoPez.descripcion = pezData["description"].ToString();
-                if (pezData.ContainsKey("price"))
-                    nuevoPez.precioVenta = System.Convert.ToInt32(pezData["price"]);
+                }
 
-                string rarezaStr = pezData.ContainsKey("rarity")
-                    ? pezData["rarity"].ToString().ToLower()
-                    : "común";
+                if (pezData.ContainsKey("description"))
+                {
+                    nuevoPez.descripcion = pezData["description"].ToString();
+                }
+
+                if (pezData.ContainsKey("price"))
+                {
+                    nuevoPez.precioVenta = System.Convert.ToInt32(pezData["price"]);
+                }
+
+                if (pezData.ContainsKey("rarity"))
+                {
+                    rarezaStr = pezData["rarity"].ToString().ToLower();
+                }
+                else
+                {
+                    rarezaStr = "común";
+                }
+
                 AsignarRarezaYModelo(nuevoPez, rarezaStr);
 
-                Sprite spriteUnico = Resources.Load<Sprite>("FishIcons/" + nuevoPez.ID);
-                nuevoPez.icono = spriteUnico != null ? spriteUnico : iconoGenerico;
+                spriteUnico = Resources.Load<Sprite>("FishIcons/" + nuevoPez.ID);
+
+                if (spriteUnico != null)
+                {
+                    nuevoPez.icono = spriteUnico;
+                }
+                else
+                {
+                    nuevoPez.icono = iconoGenerico;
+                }
 
                 todosLosPeces.Add(nuevoPez);
             }
 
             pecesCargados = true;
-            Debug.Log($"[Firebase] {todosLosPeces.Count} peces cargados y construidos en memoria.");
         }
         catch (System.Exception e)
         {
-            Debug.LogError("Error cargando base de datos de peces: " + e.Message);
+            Debug.LogWarning(
+                "Error al intentar obtener los peces desde la base de datos: " + e.Message
+            );
         }
     }
 
     /// <summary>
-    /// Traduce el string de la base de datos a un Enum y asigna la dificultad y el Prefab 3D de la bolsa.
+    /// Ajusta la bolsa visual y la dificultad del pez según el valor de texto leído.
     /// </summary>
     private void AsignarRarezaYModelo(ItemData pez, string rarezaStr)
     {
@@ -125,6 +162,7 @@ public class FishManager : MonoBehaviour
                 pez.rareza = Rareza.Comun;
                 pez.modelo3D = prefabBolsaComun;
                 pez.dificultadMovimiento = 0.5f;
+                Debug.LogWarning("El pez tiene una rareza no reconocida, se asignó como Común.");
                 break;
         }
     }

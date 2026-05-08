@@ -4,8 +4,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 
 /// <summary>
-/// Gestiona la interacción del NPC Gato, aplicando pérdida de afinidad si se agota la paciencia
-/// y registrando el encuentro y XP en la Colección del jugador.
+/// Gestiona la relación entre el jugador y un gato, su impaciencia y la conversación inicial.
 /// </summary>
 public class GatoNPC : MonoBehaviour
 {
@@ -45,6 +44,9 @@ public class GatoNPC : MonoBehaviour
 
     private EstadoInteraccion estadoActual = EstadoInteraccion.Inactivo;
 
+    /// <summary>
+    /// Conecta con el jugador e inicia la descarga de frases propias del gato.
+    /// </summary>
     void Start()
     {
         controlCamara = FindFirstObjectByType<CamaraMovement>();
@@ -52,24 +54,36 @@ public class GatoNPC : MonoBehaviour
         CargarDatosDesdeFirebase();
     }
 
+    /// <summary>
+    /// Localiza al gato en internet y trae sus frases y progreso de amistad antiguo.
+    /// </summary>
     private async void CargarDatosDesdeFirebase()
     {
-        FirebaseFirestore db = FirebaseFirestore.DefaultInstance;
-        DocumentReference docRef = db.Collection("cats").Document(idGatoDB);
+        FirebaseFirestore db;
+        DocumentReference docRef;
+        DocumentSnapshot snapshot;
+        Dictionary<string, object> dialoguesMap;
+
+        db = FirebaseFirestore.DefaultInstance;
+        docRef = db.Collection("cats").Document(idGatoDB);
 
         try
         {
-            DocumentSnapshot snapshot = await docRef.GetSnapshotAsync();
+            snapshot = await docRef.GetSnapshotAsync();
+
             if (snapshot.Exists)
             {
                 if (snapshot.ContainsField("name"))
+                {
                     nombreGato = snapshot.GetValue<string>("name");
+                }
 
-                Dictionary<string, object> dialoguesMap = snapshot.GetValue<
-                    Dictionary<string, object>
-                >("dialogues");
+                dialoguesMap = snapshot.GetValue<Dictionary<string, object>>("dialogues");
+
                 foreach (KeyValuePair<string, object> entry in dialoguesMap)
+                {
                     todosLosDialogos[entry.Key] = entry.Value.ToString();
+                }
 
                 datosCargados = true;
 
@@ -87,116 +101,165 @@ public class GatoNPC : MonoBehaviour
 
                 CalcularNivelAfinidad();
             }
+            else
+            {
+                Debug.LogWarning("El perfil de gato no existe en la base de datos.");
+            }
         }
         catch (System.Exception e)
         {
-            Debug.LogError("Error Firebase Gato: " + e.Message);
+            Debug.LogWarning("Fallo al descargar la información del gato: " + e.Message);
         }
     }
 
     /// <summary>
-    /// Revisa la paciencia y permite interactuar siempre que otra interfaz no reclame prioridad.
+    /// Comprueba de forma continua la paciencia del gato y si el jugador pulsa la barra.
     /// </summary>
     void Update()
     {
+        bool puedeInteractuar;
+
         if (interaccionBloqueada)
+        {
             return;
+        }
 
         tiempoPaciencia -= Time.deltaTime;
         if (tiempoPaciencia <= 0 && estadoActual == EstadoInteraccion.Inactivo)
         {
             interaccionBloqueada = true;
             BajarAfinidadPorImpaciencia();
-            return;
         }
-
-        bool puedeInteractuar =
-            (jugadorCerca || estadoActual != EstadoInteraccion.Inactivo) && datosCargados;
-
-        if (puedeInteractuar)
+        else
         {
-            if (estadoActual == EstadoInteraccion.Inactivo && UIManager.Instance != null)
-                UIManager.Instance.MostrarInteraccion("Pulsa [ESPACIO] para hablar");
+            puedeInteractuar =
+                (jugadorCerca || estadoActual != EstadoInteraccion.Inactivo) && datosCargados;
 
-            if (Keyboard.current.spaceKey.wasPressedThisFrame)
+            if (puedeInteractuar)
             {
                 if (estadoActual == EstadoInteraccion.Inactivo && UIManager.Instance != null)
                 {
-                    if (!UIManager.Instance.ConsumirInteraccion())
-                        return;
+                    UIManager.Instance.MostrarInteraccion("Pulsa [ESPACIO] para hablar");
                 }
-                AvanzarInteraccion();
+
+                if (Keyboard.current.spaceKey.wasPressedThisFrame)
+                {
+                    if (estadoActual == EstadoInteraccion.Inactivo && UIManager.Instance != null)
+                    {
+                        if (UIManager.Instance.ConsumirInteraccion())
+                        {
+                            AvanzarInteraccion();
+                        }
+                        else
+                        {
+                            Debug.LogWarning("Otro panel está abierto, el gato no responde.");
+                        }
+                    }
+                    else
+                    {
+                        AvanzarInteraccion();
+                    }
+                }
             }
         }
     }
 
+    /// <summary>
+    /// Pasa de fase dentro de la charla, deteniéndose a comprobar si se da comida al final.
+    /// </summary>
     private void AvanzarInteraccion()
     {
+        string claveWelcome;
+
         switch (estadoActual)
         {
             case EstadoInteraccion.Inactivo:
                 ComenzarInteraccion();
                 estadoActual = EstadoInteraccion.LeyendoWelcome;
-                string claveWelcome = "welcome" + Mathf.Clamp(nivelAfinidad, 1, 10).ToString("D2");
+                claveWelcome = "welcome" + Mathf.Clamp(nivelAfinidad, 1, 10).ToString("D2");
                 MostrarDialogo(ObtenerFrase(claveWelcome));
                 break;
+
             case EstadoInteraccion.LeyendoWelcome:
                 estadoActual = EstadoInteraccion.LeyendoRespuesta;
                 IntentarDarComida();
                 break;
+
             case EstadoInteraccion.LeyendoRespuesta:
                 TerminarInteraccionCompleta();
+                break;
+
+            default:
+                Debug.LogWarning("El gato entró en un paso del diálogo desconocido.");
                 break;
         }
     }
 
+    /// <summary>
+    /// Lee qué objeto tiene el jugador equipado e inspecciona si es el pez correcto.
+    /// </summary>
     private void IntentarDarComida()
     {
+        ItemData itemEnMano;
+
         if (InventorySystem.Instance == null)
         {
             TerminarInteraccionCompleta();
-            return;
+            Debug.LogWarning("No se encontró el inventario para leer la comida.");
         }
-
-        ItemData itemEnMano = InventorySystem.Instance.ObtenerItemEnMano();
-
-        if (itemEnMano != null && itemEnMano.ID == idPezDeseado)
-        {
-            InventorySystem.Instance.ConsumirItemEnMano();
-            interaccionBloqueada = true;
-            ReaccionFeliz();
-        }
-        else if (itemEnMano != null)
-            ReaccionEnfadado();
         else
-            ReaccionTriste();
+        {
+            itemEnMano = InventorySystem.Instance.ObtenerItemEnMano();
+
+            if (itemEnMano != null && itemEnMano.ID == idPezDeseado)
+            {
+                InventorySystem.Instance.ConsumirItemEnMano();
+                interaccionBloqueada = true;
+                ReaccionFeliz();
+            }
+            else if (itemEnMano != null)
+            {
+                ReaccionEnfadado();
+            }
+            else
+            {
+                ReaccionTriste();
+            }
+        }
     }
 
     /// <summary>
-    /// Suma XP de afinidad, emite sonido feliz, recalcula nivel y actualiza UI.
+    /// Suma la amistad, otorga dinero al jugador y expulsa al gato de la escena en positivo.
     /// </summary>
     private void ReaccionFeliz()
     {
-        string claveHappy = "happy" + Mathf.Clamp(nivelAfinidad, 1, 10).ToString("D2");
+        string claveHappy;
+        int xpGanada;
+
+        claveHappy = "happy" + Mathf.Clamp(nivelAfinidad, 1, 10).ToString("D2");
         MostrarDialogo(ObtenerFrase(claveHappy));
 
         if (SoundManager.Instance != null)
+        {
             SoundManager.Instance.ReproducirGatoFeliz();
+        }
 
         if (nivelAfinidad < 10 && GameManager.Instance != null)
         {
-            int xpGanada = Mathf.RoundToInt(50 * GameManager.Instance.bufoAfinidad);
+            xpGanada = Mathf.RoundToInt(50 * GameManager.Instance.bufoAfinidad);
             xpAfinidadActual += xpGanada;
 
             GameManager.Instance.ActualizarAfinidadGato(idGatoDB, xpAfinidadActual);
             CalcularNivelAfinidad();
 
             if (UIManager.Instance != null)
+            {
                 UIManager.Instance.MostrarAfinidadGato(
                     nivelAfinidad,
                     xpAfinidadActual,
                     xpNecesariaAfinidad
                 );
+            }
         }
 
         if (GameManager.Instance != null)
@@ -209,12 +272,14 @@ public class GatoNPC : MonoBehaviour
     }
 
     /// <summary>
-    /// Calcula el nivel actual del gato basado en la XP total acumulada.
+    /// Establece qué nivel tiene el gato matemáticamente leyendo su total de experiencia.
     /// </summary>
     private void CalcularNivelAfinidad()
     {
+        int xpRestante;
+
         nivelAfinidad = 1;
-        int xpRestante = xpAfinidadActual;
+        xpRestante = xpAfinidadActual;
         xpNecesariaAfinidad = 50;
 
         while (xpRestante >= xpNecesariaAfinidad && nivelAfinidad < 10)
@@ -225,9 +290,14 @@ public class GatoNPC : MonoBehaviour
         }
 
         if (nivelAfinidad >= 10)
+        {
             xpAfinidadActual = xpNecesariaAfinidad;
+        }
     }
 
+    /// <summary>
+    /// Resta experiencia al gato si se acaba su temporizador y lo marcha del nivel.
+    /// </summary>
     private void BajarAfinidadPorImpaciencia()
     {
         if (xpAfinidadActual > 0 && GameManager.Instance != null)
@@ -240,43 +310,69 @@ public class GatoNPC : MonoBehaviour
     }
 
     /// <summary>
-    /// Reacción de enfado con su respectivo sonido.
+    /// Lanza la queja del gato cuando se le da un objeto incorrecto que no quiere comer.
     /// </summary>
     private void ReaccionEnfadado()
     {
         MostrarDialogo(ObtenerFrase("angry"));
+
         if (SoundManager.Instance != null)
+        {
             SoundManager.Instance.ReproducirGatoEnfadado();
+        }
     }
 
     /// <summary>
-    /// Reacción de tristeza con su respectivo sonido.
+    /// Lanza la frase desilusionada cuando el jugador interactúa con la mano vacía.
     /// </summary>
     private void ReaccionTriste()
     {
         MostrarDialogo(ObtenerFrase("sad"));
+
         if (SoundManager.Instance != null)
+        {
             SoundManager.Instance.ReproducirGatoEnfadado();
-    }
-
-    private string ObtenerFrase(string clave)
-    {
-        return todosLosDialogos.ContainsKey(clave) ? todosLosDialogos[clave] : "...";
-    }
-
-    private void MostrarDialogo(string frase)
-    {
-        if (UIManager.Instance != null)
-            UIManager.Instance.MostrarBocadillo(frase);
+        }
     }
 
     /// <summary>
-    /// Bloquea los controles, reproduce el maullido propio del gato y muestra la UI.
+    /// Extrae un texto interno basándose en su clave de búsqueda.
+    /// </summary>
+    private string ObtenerFrase(string clave)
+    {
+        if (todosLosDialogos.ContainsKey(clave))
+        {
+            return todosLosDialogos[clave];
+        }
+        else
+        {
+            Debug.LogWarning("No se encontró la línea del gato con la clave solicitada.");
+            return "...";
+        }
+    }
+
+    /// <summary>
+    /// Emite la frase hacia la burbuja de la interfaz central de usuario.
+    /// </summary>
+    private void MostrarDialogo(string frase)
+    {
+        if (UIManager.Instance != null)
+        {
+            UIManager.Instance.MostrarBocadillo(frase);
+        }
+    }
+
+    /// <summary>
+    /// Reproduce el maullido, bloquea controles y fija la posición de ambos.
     /// </summary>
     private void ComenzarInteraccion()
     {
+        CatBehavior behavior;
+
         if (SoundManager.Instance != null)
+        {
             SoundManager.Instance.ReproducirSonidoPersonalizado(maullidoPersonalizado);
+        }
 
         if (UIManager.Instance != null)
         {
@@ -289,49 +385,86 @@ public class GatoNPC : MonoBehaviour
         }
 
         if (controlCamara != null)
+        {
             controlCamara.rotacionBloqueada = true;
-        if (controlMovimiento != null)
-            controlMovimiento.movimientoBloqueado = true;
+        }
 
-        CatBehavior behavior = GetComponent<CatBehavior>();
+        if (controlMovimiento != null)
+        {
+            controlMovimiento.movimientoBloqueado = true;
+        }
+
+        behavior = GetComponent<CatBehavior>();
         if (behavior != null && controlMovimiento != null)
+        {
             behavior.IniciarInteraccion(controlMovimiento.transform);
+        }
     }
 
+    /// <summary>
+    /// Libera las restricciones al jugador y retira la burbuja de conversación de la pantalla.
+    /// </summary>
     private void TerminarInteraccionCompleta()
     {
-        estadoActual = EstadoInteraccion.Inactivo;
-        if (controlCamara != null)
-            controlCamara.rotacionBloqueada = false;
-        if (controlMovimiento != null)
-            controlMovimiento.movimientoBloqueado = false;
-        if (UIManager.Instance != null)
-            UIManager.Instance.OcultarBocadillo();
+        CatBehavior behavior;
 
-        CatBehavior behavior = GetComponent<CatBehavior>();
+        estadoActual = EstadoInteraccion.Inactivo;
+
+        if (controlCamara != null)
+        {
+            controlCamara.rotacionBloqueada = false;
+        }
+
+        if (controlMovimiento != null)
+        {
+            controlMovimiento.movimientoBloqueado = false;
+        }
+
+        if (UIManager.Instance != null)
+        {
+            UIManager.Instance.OcultarBocadillo();
+        }
+
+        behavior = GetComponent<CatBehavior>();
         if (behavior != null)
+        {
             behavior.FinalizarInteraccion();
+        }
     }
 
+    /// <summary>
+    /// Limpia al personaje finalizado de la escena.
+    /// </summary>
     private void DesaparecerDeLaIsla()
     {
         TerminarInteraccionCompleta();
         Destroy(gameObject);
     }
 
+    /// <summary>
+    /// Avisa al jugador si se aproxima mientras la interaccion se puede realizar.
+    /// </summary>
     private void OnTriggerEnter(Collider other)
     {
         if (other.CompareTag("Player") && !interaccionBloqueada)
+        {
             jugadorCerca = true;
+        }
     }
 
+    /// <summary>
+    /// Avisa de que el jugador se va, limpiando el texto flotante si no se le está hablando.
+    /// </summary>
     private void OnTriggerExit(Collider other)
     {
         if (other.CompareTag("Player"))
         {
             jugadorCerca = false;
+
             if (estadoActual == EstadoInteraccion.Inactivo && UIManager.Instance != null)
+            {
                 UIManager.Instance.OcultarInteraccion();
+            }
         }
     }
 }

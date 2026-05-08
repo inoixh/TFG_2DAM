@@ -3,7 +3,7 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Representa visualmente una bendición o bufo activo en la interfaz de la Iglesia.
+/// Muestra visualmente la información de una bendición en la pantalla de la iglesia.
 /// </summary>
 public class ChurchSlot : MonoBehaviour
 {
@@ -13,7 +13,7 @@ public class ChurchSlot : MonoBehaviour
     public TextMeshProUGUI textoDescripcion;
 
     /// <summary>
-    /// Asigna la información del servicio a los elementos visuales de la casilla.
+    /// Coloca el icono, el nombre y la descripción de la bendición en los textos e imágenes correspondientes.
     /// </summary>
     public void ConfigurarSlot(ServiceData servicio)
     {
@@ -22,9 +22,29 @@ public class ChurchSlot : MonoBehaviour
             imagenBufo.sprite = servicio.icono;
             imagenBufo.color = Color.white;
         }
+        else
+        {
+            Debug.LogWarning(
+                "Falta la imagen o el icono del servicio en la casilla de la iglesia."
+            );
+        }
+
         if (textoNombre != null)
+        {
             textoNombre.text = servicio.nombreDisplay;
+        }
+        else
+        {
+            Debug.LogWarning("Falta el texto del nombre en la casilla de la iglesia.");
+        }
+
         if (textoDescripcion != null)
+        {
             textoDescripcion.text = servicio.descripcion;
+        }
+        else
+        {
+            Debug.LogWarning("Falta el texto de la descripción en la casilla de la iglesia.");
+        }
     }
 }

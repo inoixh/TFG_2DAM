@@ -1,7 +1,7 @@
 using UnityEngine;
 
 /// <summary>
-/// Contenedor de datos para los servicios consumibles (Taberna) y bendiciones (Iglesia).
+/// Molde para crear las bebidas de la taberna y los rezos de la iglesia.
 /// </summary>
 public class ServiceData : ScriptableObject
 {

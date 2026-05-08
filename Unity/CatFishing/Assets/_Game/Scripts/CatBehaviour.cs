@@ -1,9 +1,7 @@
 using UnityEngine;
 
 /// <summary>
-/// Gestiona el movimiento libre (sin NavMesh), animaciones y flotabilidad.
-/// Los gatos dan pasitos aleatorios alrededor de sus zonas de patrulla.
-/// Asume que 'Idle' es el estado por defecto en el Animator y no requiere booleanos.
+/// Asigna rutinas de patrulla o espera a los gatos de la isla.
 /// </summary>
 public class CatBehavior : MonoBehaviour
 {
@@ -17,7 +15,7 @@ public class CatBehavior : MonoBehaviour
     public Comportamiento comportamientoBase;
     public bool esFlotante = false;
 
-    [Header("Configuración Paseo (Sin NavMesh)")]
+    [Header("Configuración Paseo")]
     public float velocidadCaminar = 3f;
     public float radioDeMerodeo = 3f;
     public float esperaMinima = 1f;
@@ -29,12 +27,9 @@ public class CatBehavior : MonoBehaviour
     public float velocidadFlote = 2f;
     public float alturaFlote = 0.2f;
     public float elevacionExtra = 1f;
-    private float posYOriginalModelo;
 
     [Header("Rutas de Patrulla")]
     public Transform[] waypoints;
-    private int puntoActual = 0;
-    private int contadorPaseos = 0;
 
     [Header("Animaciones Disponibles")]
     public Animator animator;
@@ -43,18 +38,27 @@ public class CatBehavior : MonoBehaviour
 
     [Header("Interacción")]
     public bool mirarAlJugador = true;
+
+    private float posYOriginalModelo;
+    private int puntoActual = 0;
+    private int contadorPaseos = 0;
     private bool estaInteractuando = false;
     private Transform jugadorTransform;
-
     private Vector3 posicionBase;
     private Vector3 destinoActual;
     private bool estaCaminando = false;
     private float temporizadorEspera;
 
+    /// <summary>
+    /// Guarda la posición inicial y busca las rutas disponibles.
+    /// </summary>
     private void Start()
     {
         if (modelo3D != null)
+        {
             posYOriginalModelo = modelo3D.localPosition.y;
+        }
+
         posicionBase = transform.position;
 
         if (comportamientoBase == Comportamiento.Patrullando)
@@ -81,6 +85,9 @@ public class CatBehavior : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Evalúa en cada momento si el gato debe flotar, hablar o caminar.
+    /// </summary>
     private void Update()
     {
         GestionarFlote();
@@ -88,7 +95,9 @@ public class CatBehavior : MonoBehaviour
         if (estaInteractuando && jugadorTransform != null)
         {
             if (mirarAlJugador)
+            {
                 GirarHacia(jugadorTransform.position);
+            }
         }
         else if (comportamientoBase == Comportamiento.Patrullando)
         {
@@ -99,7 +108,7 @@ public class CatBehavior : MonoBehaviour
     }
 
     /// <summary>
-    /// Aplica un efecto de levitación suave si el NPC está configurado como flotante, y le suma altura.
+    /// Sube y baja el modelo del gato constantemente para dar la sensación mágica.
     /// </summary>
     private void GestionarFlote()
     {
@@ -118,7 +127,7 @@ public class CatBehavior : MonoBehaviour
     }
 
     /// <summary>
-    /// Controla la lógica de buscar un punto aleatorio, desplazarse y esperar.
+    /// Decide hacia dónde moverse y cuánto esperar.
     /// </summary>
     private void GestionarPaseoLibre()
     {
@@ -143,6 +152,7 @@ public class CatBehavior : MonoBehaviour
                 new Vector3(transform.position.x, 0, transform.position.z),
                 new Vector3(destinoActual.x, 0, destinoActual.z)
             );
+
             if (distancia < 0.1f)
             {
                 LlegarADestino();
@@ -151,7 +161,7 @@ public class CatBehavior : MonoBehaviour
     }
 
     /// <summary>
-    /// Calcula un punto aleatorio cerca de la zona base o del waypoint actual.
+    /// Elige una coordenada al azar cercana para que el gato camine hacia ella.
     /// </summary>
     private void FijarNuevoDestino()
     {
@@ -171,37 +181,40 @@ public class CatBehavior : MonoBehaviour
             0,
             Random.Range(-radioDeMerodeo, radioDeMerodeo)
         );
+
         destinoActual = centroZona + offsetAleatorio;
         destinoActual.y = transform.position.y;
-
         estaCaminando = true;
     }
 
     /// <summary>
-    /// Detiene al NPC y calcula el tiempo de espera antes del siguiente paseo.
+    /// Frena al gato y reinicia el reloj de espera.
     /// </summary>
     private void LlegarADestino()
     {
         estaCaminando = false;
         temporizadorEspera = Random.Range(esperaMinima, esperaMaxima);
-
         contadorPaseos++;
+
         if (contadorPaseos >= paseosPorZona && waypoints != null && waypoints.Length > 0)
         {
             contadorPaseos = 0;
             puntoActual++;
             if (puntoActual >= waypoints.Length)
+            {
                 puntoActual = 0;
+            }
         }
     }
 
     /// <summary>
-    /// Rota suavemente el modelo hacia una dirección específica.
+    /// Hace que el personaje mire gradualmente hacia la posición que le digamos.
     /// </summary>
     private void GirarHacia(Vector3 objetivo)
     {
         Vector3 direccion = (objetivo - transform.position).normalized;
         direccion.y = 0;
+
         if (direccion != Vector3.zero)
         {
             Quaternion rotacionObjetivo = Quaternion.LookRotation(direccion);
@@ -214,26 +227,26 @@ public class CatBehavior : MonoBehaviour
     }
 
     /// <summary>
-    /// Envía los booleanos al Animator solo si el modelo dispone de dichas animaciones.
+    /// Cambia de animación de reposo a caminar o a hablar de forma segura.
     /// </summary>
     private void GestionarAnimaciones()
     {
-        if (animator == null)
-            return;
-
-        if (tieneAnimWalk)
+        if (animator != null)
         {
-            animator.SetBool("Walk", estaCaminando && !estaInteractuando);
-        }
+            if (tieneAnimWalk)
+            {
+                animator.SetBool("Walk", estaCaminando && !estaInteractuando);
+            }
 
-        if (tieneAnimTalk)
-        {
-            animator.SetBool("Talk", estaInteractuando);
+            if (tieneAnimTalk)
+            {
+                animator.SetBool("Talk", estaInteractuando);
+            }
         }
     }
 
     /// <summary>
-    /// Detiene la rutina de paseo y orienta al NPC hacia el jugador.
+    /// Avisa al gato de que el jugador quiere charlar y detiene su ruta.
     /// </summary>
     public void IniciarInteraccion(Transform jugador)
     {
@@ -242,7 +255,7 @@ public class CatBehavior : MonoBehaviour
     }
 
     /// <summary>
-    /// Libera al NPC para que reanude sus rutinas de patrulla o espera.
+    /// Desbloquea al gato para que siga con su vida normal tras charlar.
     /// </summary>
     public void FinalizarInteraccion()
     {

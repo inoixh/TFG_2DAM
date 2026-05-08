@@ -5,8 +5,7 @@ using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 /// <summary>
-/// Gestiona la mecánica de pesca, la dificultad dinámica, las animaciones y la comunicación
-/// en tiempo real con la interfaz de usuario para indicar las acciones disponibles.
+/// Controla el minijuego de pesca, la barra de dificultad y las animaciones de la caña.
 /// </summary>
 public class PescaController : MonoBehaviour
 {
@@ -51,46 +50,66 @@ public class PescaController : MonoBehaviour
     private Coroutine cronometroEspera;
     private CamaraMovement controlCamara;
 
+    /// <summary>
+    /// Apaga las pantallas de pesca al empezar y enlaza el control del jugador.
+    /// </summary>
     void Start()
     {
         movimientoJugador = GetComponentInParent<PlayerMovement>();
         controlCamara = FindFirstObjectByType<CamaraMovement>();
 
         if (panelMinijuego != null)
+        {
             panelMinijuego.SetActive(false);
+        }
+
         if (barraProgreso != null)
+        {
             barraProgreso.gameObject.SetActive(false);
-    }
-
-    void Update()
-    {
-        if (Mouse.current == null)
-            return;
-
-        if (InventorySystem.Instance != null && !InventorySystem.Instance.TieneCanaEnMano())
-        {
-            if (UIManager.Instance != null)
-                UIManager.Instance.OcultarInteraccion();
-            return;
-        }
-
-        if (enMinijuego)
-        {
-            ControlarMinijuego();
-            return;
-        }
-
-        if (Mouse.current.leftButton.wasPressedThisFrame)
-        {
-            if (puedeLanzar && enZonaDePesca)
-                EmpezarLanzamiento();
-            else if (esperandoPez)
-                CancelarPesca();
         }
     }
 
     /// <summary>
-    /// Recibe la señal física del agua y actualiza el estado visual del jugador.
+    /// Escucha el ratón para lanzar el anzuelo, cancelar la espera o jugar el minijuego.
+    /// </summary>
+    void Update()
+    {
+        if (Mouse.current != null)
+        {
+            if (InventorySystem.Instance != null && !InventorySystem.Instance.TieneCanaEnMano())
+            {
+                if (UIManager.Instance != null)
+                {
+                    UIManager.Instance.OcultarInteraccion();
+                }
+            }
+            else
+            {
+                if (enMinijuego)
+                {
+                    ControlarMinijuego();
+                }
+                else if (Mouse.current.leftButton.wasPressedThisFrame)
+                {
+                    if (puedeLanzar && enZonaDePesca)
+                    {
+                        EmpezarLanzamiento();
+                    }
+                    else if (esperandoPez)
+                    {
+                        CancelarPesca();
+                    }
+                }
+            }
+        }
+        else
+        {
+            Debug.LogWarning("No se detecta el ratón conectado.");
+        }
+    }
+
+    /// <summary>
+    /// Memoriza si el jugador está pisando el agua y muestra el texto de ayuda.
     /// </summary>
     public void EstablecerZonaDePesca(bool estado)
     {
@@ -99,58 +118,73 @@ public class PescaController : MonoBehaviour
     }
 
     /// <summary>
-    /// Evalúa el estado actual de la caña para mostrar u ocultar los avisos de interacción.
+    /// Cambia la instrucción en pantalla dependiendo de lo que el jugador esté haciendo.
     /// </summary>
     private void ActualizarTextosUI()
     {
-        if (UIManager.Instance == null)
-            return;
-
-        if (enMinijuego)
+        if (UIManager.Instance != null)
         {
-            UIManager.Instance.OcultarInteraccion();
-        }
-        else if (esperandoPez)
-        {
-            UIManager.Instance.MostrarInteraccion("Pulsa [CLICK IZQ] para dejar de pescar");
-        }
-        else if (puedeLanzar && enZonaDePesca)
-        {
-            UIManager.Instance.MostrarInteraccion("Pulsa [CLICK IZQ] para pescar");
-        }
-        else
-        {
-            UIManager.Instance.OcultarInteraccion();
+            if (enMinijuego)
+            {
+                UIManager.Instance.OcultarInteraccion();
+            }
+            else if (esperandoPez)
+            {
+                UIManager.Instance.MostrarInteraccion("Pulsa [CLICK IZQ] para dejar de pescar");
+            }
+            else if (puedeLanzar && enZonaDePesca)
+            {
+                UIManager.Instance.MostrarInteraccion("Pulsa [CLICK IZQ] para pescar");
+            }
+            else
+            {
+                UIManager.Instance.OcultarInteraccion();
+            }
         }
     }
 
     /// <summary>
-    /// Prepara el lanzamiento de la caña, bloquea controles y reproduce sonido.
+    /// Gira al jugador, hace la animación de tirar la caña y pone a contar el tiempo.
     /// </summary>
     private void EmpezarLanzamiento()
     {
-        if (FishManager.Instance == null || !FishManager.Instance.pecesCargados)
-            return;
+        if (FishManager.Instance != null && FishManager.Instance.pecesCargados)
+        {
+            puedeLanzar = false;
 
-        puedeLanzar = false;
-        if (movimientoJugador != null)
-            movimientoJugador.movimientoBloqueado = true;
-        if (controlCamara != null)
-            controlCamara.rotacionBloqueada = true;
+            if (movimientoJugador != null)
+            {
+                movimientoJugador.movimientoBloqueado = true;
+            }
 
-        if (animadorCana != null)
-            animadorCana.SetTrigger("Lanzar");
-        if (SoundManager.Instance != null)
-            SoundManager.Instance.SFX_Lanzar();
+            if (controlCamara != null)
+            {
+                controlCamara.rotacionBloqueada = true;
+            }
 
-        esperandoPez = true;
-        ActualizarTextosUI();
+            if (animadorCana != null)
+            {
+                animadorCana.SetTrigger("Lanzar");
+            }
 
-        cronometroEspera = StartCoroutine(RutinaEsperarPez());
+            if (SoundManager.Instance != null)
+            {
+                SoundManager.Instance.SFX_Lanzar();
+            }
+
+            esperandoPez = true;
+            ActualizarTextosUI();
+
+            cronometroEspera = StartCoroutine(RutinaEsperarPez());
+        }
+        else
+        {
+            Debug.LogWarning("No se puede pescar porque los peces aún no se han descargado.");
+        }
     }
 
     /// <summary>
-    /// Gestiona el tiempo aleatorio que tarda un pez en picar el anzuelo.
+    /// Detiene el proceso unos segundos de forma aleatoria para simular la espera real.
     /// </summary>
     private IEnumerator RutinaEsperarPez()
     {
@@ -159,7 +193,7 @@ public class PescaController : MonoBehaviour
     }
 
     /// <summary>
-    /// Activa el panel de minijuego, selecciona el pez e inicia el sonido del carrete.
+    /// Enciende la pantalla verde de la tensión, elige el premio y empieza el reto.
     /// </summary>
     private void EmpezarMinijuego()
     {
@@ -168,17 +202,29 @@ public class PescaController : MonoBehaviour
         ActualizarTextosUI();
 
         if (animadorCana != null)
+        {
             animadorCana.SetTrigger("Picar");
-        if (SoundManager.Instance != null)
-            SoundManager.Instance.SFX_EmpezarForcejeo();
+        }
 
-        panelMinijuego.SetActive(true);
-        barraProgreso.gameObject.SetActive(true);
+        if (SoundManager.Instance != null)
+        {
+            SoundManager.Instance.SFX_EmpezarForcejeo();
+        }
+
+        if (panelMinijuego != null)
+        {
+            panelMinijuego.SetActive(true);
+        }
+
+        if (barraProgreso != null)
+        {
+            barraProgreso.gameObject.SetActive(true);
+        }
 
         pezActualEnJuego = ElegirPezDefinitivo();
         ConfigurarDificultadDinamica(pezActualEnJuego);
 
-        if (iconoPez.GetComponent<Image>() != null && iconoIncognita != null)
+        if (iconoPez != null && iconoPez.GetComponent<Image>() != null && iconoIncognita != null)
         {
             iconoPez.GetComponent<Image>().sprite = iconoIncognita;
         }
@@ -189,55 +235,86 @@ public class PescaController : MonoBehaviour
     }
 
     /// <summary>
-    /// Determina el pez a pescar, dando prioridad a las misiones activas de los NPCs.
+    /// Revisa si los gatos necesitan algo en concreto; si no, pesca de forma normal.
     /// </summary>
     private ItemData ElegirPezDefinitivo()
     {
+        ItemData resultado;
+        ItemData pezMision;
+
         if (Random.Range(0f, 100f) <= probabilidadPezMision)
         {
-            ItemData pezMision = BuscarPezRequeridoPorGatos();
+            pezMision = BuscarPezRequeridoPorGatos();
             if (pezMision != null)
-                return pezMision;
+            {
+                resultado = pezMision;
+            }
+            else
+            {
+                resultado = ElegirPezPorCaña();
+            }
         }
-        return ElegirPezPorCaña();
+        else
+        {
+            resultado = ElegirPezPorCaña();
+        }
+
+        return resultado;
     }
 
     /// <summary>
-    /// Escanea la isla en busca de gatos y extrae aleatoriamente el ID de un pez deseado.
+    /// Rastrea la isla para ver qué peces quieren comer los gatos que hay paseando.
     /// </summary>
     private ItemData BuscarPezRequeridoPorGatos()
     {
-        GatoNPC[] gatosEnIsla = FindObjectsByType<GatoNPC>(FindObjectsSortMode.None);
-        List<string> idsBuscados = new List<string>();
+        GatoNPC[] gatosEnIsla;
+        List<string> idsBuscados;
+        string idElegido;
+        ItemData resultado = null;
+
+        gatosEnIsla = FindObjectsByType<GatoNPC>(FindObjectsSortMode.None);
+        idsBuscados = new List<string>();
 
         foreach (GatoNPC gato in gatosEnIsla)
         {
             if (!string.IsNullOrEmpty(gato.idPezDeseado))
+            {
                 idsBuscados.Add(gato.idPezDeseado);
+            }
         }
 
-        if (idsBuscados.Count == 0)
-            return null;
-
-        string idElegido = idsBuscados[Random.Range(0, idsBuscados.Count)];
-        foreach (ItemData pez in FishManager.Instance.todosLosPeces)
+        if (idsBuscados.Count > 0)
         {
-            if (pez.ID == idElegido)
-                return pez;
+            idElegido = idsBuscados[Random.Range(0, idsBuscados.Count)];
+
+            foreach (ItemData pez in FishManager.Instance.todosLosPeces)
+            {
+                if (pez.ID == idElegido)
+                {
+                    resultado = pez;
+                }
+            }
         }
-        return null;
+
+        return resultado;
     }
 
     /// <summary>
-    /// Ajusta las probabilidades de aparición de peces basándose en la rareza de la caña equipada.
+    /// Tira los dados para ver la calidad del premio en función de lo buena que sea tu caña.
     /// </summary>
     private ItemData ElegirPezPorCaña()
     {
-        ItemData canaActual = InventorySystem.Instance.ObtenerItemEnMano();
-        Rareza rarezaCana = canaActual != null ? canaActual.rareza : Rareza.Comun;
+        ItemData canaActual;
+        Rareza rarezaCana;
+        float dado;
+        Rareza rarezaBuscada;
+        List<ItemData> candidatos;
+        ItemData resultado;
 
-        float dado = Random.Range(0f, 100f);
-        Rareza rarezaBuscada = Rareza.Comun;
+        canaActual = InventorySystem.Instance.ObtenerItemEnMano();
+        rarezaCana = canaActual != null ? canaActual.rareza : Rareza.Comun;
+        dado = Random.Range(0f, 100f);
+        rarezaBuscada = Rareza.Comun;
 
         switch (rarezaCana)
         {
@@ -283,105 +360,158 @@ public class PescaController : MonoBehaviour
                 break;
         }
 
-        List<ItemData> candidatos = new List<ItemData>();
-        foreach (var pez in FishManager.Instance.todosLosPeces)
+        candidatos = new List<ItemData>();
+
+        foreach (ItemData pez in FishManager.Instance.todosLosPeces)
         {
             if (pez.rareza == rarezaBuscada)
+            {
                 candidatos.Add(pez);
+            }
         }
 
         if (candidatos.Count > 0)
-            return candidatos[Random.Range(0, candidatos.Count)];
-        return FishManager.Instance.todosLosPeces[
-            Random.Range(0, FishManager.Instance.todosLosPeces.Count)
-        ];
+        {
+            resultado = candidatos[Random.Range(0, candidatos.Count)];
+        }
+        else
+        {
+            resultado = FishManager.Instance.todosLosPeces[
+                Random.Range(0, FishManager.Instance.todosLosPeces.Count)
+            ];
+        }
+
+        return resultado;
     }
 
     /// <summary>
-    /// Calcula la dificultad evaluando la diferencia de nivel y aplicando el bufo de la Iglesia.
+    /// Aplica las ventajas de la iglesia para hacer que la barra de pesca sea más lenta y ancha.
     /// </summary>
     private void ConfigurarDificultadDinamica(ItemData pez)
     {
-        if (pez == null)
-            return;
+        ItemData canaActual;
+        int nivelCana;
+        int nivelPez;
+        int diferencia;
 
-        ItemData canaActual = InventorySystem.Instance.ObtenerItemEnMano();
-        int nivelCana = canaActual != null ? (int)canaActual.rareza : 0;
-        int nivelPez = (int)pez.rareza;
+        if (pez != null)
+        {
+            canaActual = InventorySystem.Instance.ObtenerItemEnMano();
+            nivelCana = canaActual != null ? (int)canaActual.rareza : 0;
+            nivelPez = (int)pez.rareza;
+            diferencia = nivelPez - nivelCana;
 
-        int diferencia = nivelPez - nivelCana;
+            velocidadPezActual = 0.5f + (diferencia * 0.3f);
+            tamanoBarraActual = 0.3f - (diferencia * 0.05f);
 
-        velocidadPezActual = 0.5f + (diferencia * 0.3f);
-        tamanoBarraActual = 0.3f - (diferencia * 0.05f);
+            if (GameManager.Instance != null)
+            {
+                velocidadPezActual += GameManager.Instance.bufoReduccionDificultad;
+            }
 
-        if (GameManager.Instance != null)
-            velocidadPezActual += GameManager.Instance.bufoReduccionDificultad;
+            velocidadPezActual = Mathf.Clamp(velocidadPezActual, 0.2f, 2.5f);
+            tamanoBarraActual = Mathf.Clamp(tamanoBarraActual, 0.08f, 0.5f);
 
-        velocidadPezActual = Mathf.Clamp(velocidadPezActual, 0.2f, 2.5f);
-        tamanoBarraActual = Mathf.Clamp(tamanoBarraActual, 0.08f, 0.5f);
-
-        barraVerde.sizeDelta = new Vector2(
-            barraVerde.sizeDelta.x,
-            tamanoBarraActual * alturaContenedor
-        );
+            if (barraVerde != null)
+            {
+                barraVerde.sizeDelta = new Vector2(
+                    barraVerde.sizeDelta.x,
+                    tamanoBarraActual * alturaContenedor
+                );
+            }
+        }
+        else
+        {
+            Debug.LogWarning("No se puede configurar la dificultad sin saber el pez.");
+        }
     }
 
     /// <summary>
-    /// Gestiona la lógica de movimiento de las barras y la progresión de victoria.
+    /// Sube o baja el nivel de victoria dependiendo de si el jugador mantiene el pez dentro del cuadro verde.
     /// </summary>
     private void ControlarMinijuego()
     {
+        float diferencia;
+        bool dentroDeZona;
+
         tiempoPez += Time.deltaTime * velocidadPezActual;
         posPez = Mathf.PerlinNoise(tiempoPez, 0f);
 
         if (Mouse.current.leftButton.isPressed)
+        {
             posBarra += velocidadSubidaBarra * Time.deltaTime;
+        }
         else
+        {
             posBarra -= gravedadBarra * Time.deltaTime;
+        }
 
         posBarra = Mathf.Clamp(posBarra, 0f, 1f);
-        barraVerde.anchoredPosition = new Vector2(0, posBarra * alturaContenedor);
-        iconoPez.anchoredPosition = new Vector2(0, posPez * alturaContenedor);
 
-        float diferencia = Mathf.Abs(posBarra - posPez);
-        bool dentroDeZona = diferencia < (tamanoBarraActual / 2f);
-        iconoPez.GetComponent<Image>().color = dentroDeZona ? Color.green : Color.white;
+        if (barraVerde != null)
+            barraVerde.anchoredPosition = new Vector2(0, posBarra * alturaContenedor);
+        if (iconoPez != null)
+            iconoPez.anchoredPosition = new Vector2(0, posPez * alturaContenedor);
+
+        diferencia = Mathf.Abs(posBarra - posPez);
+        dentroDeZona = diferencia < (tamanoBarraActual / 2f);
+
+        if (iconoPez != null && iconoPez.GetComponent<Image>() != null)
+        {
+            iconoPez.GetComponent<Image>().color = dentroDeZona ? Color.green : Color.white;
+        }
 
         if (dentroDeZona)
+        {
             progreso += velocidadProgreso * Time.deltaTime;
+        }
         else
+        {
             progreso -= (velocidadProgreso * 0.2f) * Time.deltaTime;
+        }
 
         progreso = Mathf.Clamp(progreso, 0f, 1f);
-        barraProgreso.value = progreso;
+
+        if (barraProgreso != null)
+            barraProgreso.value = progreso;
 
         ActualizarColorBarra();
 
         if (progreso >= 1f)
+        {
             GanarPesca();
+        }
         else if (progreso <= 0f)
+        {
             PerderPesca();
+        }
     }
 
     /// <summary>
-    /// Interpola colores para reflejar visualmente el progreso de la pesca.
+    /// Cambia el color del termómetro del rojo al verde a medida que te acercas a ganar.
     /// </summary>
     private void ActualizarColorBarra()
     {
-        if (imagenRelleno == null)
-            return;
-        if (progreso < 0.5f)
-            imagenRelleno.color = Color.Lerp(Color.red, Color.yellow, progreso * 2f);
-        else
-            imagenRelleno.color = Color.Lerp(Color.yellow, Color.green, (progreso - 0.5f) * 2f);
+        if (imagenRelleno != null)
+        {
+            if (progreso < 0.5f)
+            {
+                imagenRelleno.color = Color.Lerp(Color.red, Color.yellow, progreso * 2f);
+            }
+            else
+            {
+                imagenRelleno.color = Color.Lerp(Color.yellow, Color.green, (progreso - 0.5f) * 2f);
+            }
+        }
     }
 
     /// <summary>
-    /// Finaliza el minijuego con éxito, registra en la colección y reproduce sonido de ganar.
+    /// Termina el juego, guarda el premio en el inventario y calcula los milagros de atrapar doble.
     /// </summary>
     private void GanarPesca()
     {
         TerminarMinijuego();
+
         if (animadorCana != null)
             animadorCana.SetTrigger("Recoger");
         if (SoundManager.Instance != null)
@@ -390,63 +520,83 @@ public class PescaController : MonoBehaviour
         if (InventorySystem.Instance != null && pezActualEnJuego != null)
         {
             InventorySystem.Instance.AnadirObjeto(pezActualEnJuego);
-            GameManager.Instance.RegistrarPezCapturado(pezActualEnJuego.ID);
 
-            if (
-                GameManager.Instance != null
-                && Random.Range(0f, 1f) <= GameManager.Instance.bufoProbabilidadDoble
-            )
+            if (GameManager.Instance != null)
             {
-                InventorySystem.Instance.AnadirObjeto(pezActualEnJuego);
                 GameManager.Instance.RegistrarPezCapturado(pezActualEnJuego.ID);
-                if (UIManager.Instance != null)
-                    UIManager.Instance.MostrarTooltipTemporal("¡MILAGRO! ¡Captura Doble!", 3f);
+
+                if (Random.Range(0f, 1f) <= GameManager.Instance.bufoProbabilidadDoble)
+                {
+                    InventorySystem.Instance.AnadirObjeto(pezActualEnJuego);
+                    GameManager.Instance.RegistrarPezCapturado(pezActualEnJuego.ID);
+
+                    if (UIManager.Instance != null)
+                    {
+                        UIManager.Instance.MostrarTooltipTemporal("¡MILAGRO! ¡Captura Doble!", 3f);
+                    }
+                }
             }
         }
+        else
+        {
+            Debug.LogWarning(
+                "No se entregó el premio porque el inventario no funciona o no había pez."
+            );
+        }
+
         Invoke("ResetearSistema", 2f);
     }
 
     /// <summary>
-    /// Finaliza el minijuego con fallo y reproduce sonido de perder.
+    /// Suena la rotura del sedal y avisa de que el pez se ha escapado.
     /// </summary>
     private void PerderPesca()
     {
         TerminarMinijuego();
+
         if (animadorCana != null)
             animadorCana.SetTrigger("Recoger");
         if (SoundManager.Instance != null)
             SoundManager.Instance.SFX_Perder();
+
         Invoke("ResetearSistema", 1f);
     }
 
     /// <summary>
-    /// Cancela abruptamente la pesca, parando los sonidos en curso.
+    /// Interrumpe la espera porque el jugador se ha arrepentido o pulsado sin querer.
     /// </summary>
     private void CancelarPesca()
     {
         if (cronometroEspera != null)
+        {
             StopCoroutine(cronometroEspera);
+        }
+
         esperandoPez = false;
 
         if (animadorCana != null)
             animadorCana.SetTrigger("Recoger");
         if (SoundManager.Instance != null)
             SoundManager.Instance.SFX_PararForcejeo();
+
         Invoke("ResetearSistema", 1f);
     }
 
     /// <summary>
-    /// Oculta la interfaz gráfica del minijuego.
+    /// Esconde la barra verde visual para no estorbar en la pantalla general.
     /// </summary>
     private void TerminarMinijuego()
     {
         enMinijuego = false;
-        panelMinijuego.SetActive(false);
-        barraProgreso.gameObject.SetActive(false);
+
+        if (panelMinijuego != null)
+            panelMinijuego.SetActive(false);
+        if (barraProgreso != null)
+            barraProgreso.gameObject.SetActive(false);
     }
 
     /// <summary>
-    /// Libera los controles del jugador y restaura los avisos de la UI según la posición.
+    /// Libera al jugador para poder seguir caminando y girando la cabeza.
     /// </summary>
     private void ResetearSistema()
     {
@@ -455,9 +605,14 @@ public class PescaController : MonoBehaviour
         enMinijuego = false;
 
         if (movimientoJugador != null)
+        {
             movimientoJugador.movimientoBloqueado = false;
+        }
+
         if (controlCamara != null)
+        {
             controlCamara.rotacionBloqueada = false;
+        }
 
         ActualizarTextosUI();
     }

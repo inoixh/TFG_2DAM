@@ -3,8 +3,7 @@ using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 /// <summary>
-/// Representa un objeto a la venta dentro de la interfaz del mercado.
-/// Gestiona la visualización temporal de tooltips al pasar el ratón.
+/// Controla visualmente un producto que está a la venta en el escaparate del mercado.
 /// </summary>
 public class MarketSlot
     : MonoBehaviour,
@@ -18,7 +17,7 @@ public class MarketSlot
     private ItemData datosItem;
 
     /// <summary>
-    /// Asigna la información del objeto a esta casilla y activa visualmente su icono.
+    /// Recibe el catálogo del objeto y activa su imagen principal en la tienda.
     /// </summary>
     public void ConfigurarSlot(ItemData item)
     {
@@ -29,10 +28,16 @@ public class MarketSlot
             iconoItem.sprite = item.icono;
             iconoItem.color = Color.white;
         }
+        else
+        {
+            Debug.LogWarning(
+                "Falta la imagen base o el objeto no tiene icono para mostrar en el mercado."
+            );
+        }
     }
 
     /// <summary>
-    /// Notifica al gestor del mercado que el jugador ha seleccionado este producto.
+    /// Avisa a la tienda general de que el jugador ha hecho clic en este producto.
     /// </summary>
     public void OnPointerClick(PointerEventData eventData)
     {
@@ -40,27 +45,35 @@ public class MarketSlot
         {
             MarketManager.Instance.SeleccionarItemTienda(datosItem);
         }
+        else
+        {
+            Debug.LogWarning("Se hizo clic en un objeto del mercado pero no hay datos válidos.");
+        }
     }
 
     /// <summary>
-    /// Extrae la información del objeto y solicita al UIManager que la muestre temporalmente.
+    /// Crea un texto flotante temporal con el nombre del producto al pasar el ratón.
     /// </summary>
     public void OnPointerEnter(PointerEventData eventData)
     {
+        string textoInfo;
+
         if (datosItem != null && UIManager.Instance != null)
         {
-            string textoInfo =
+            textoInfo =
                 $"{datosItem.nombreDisplay} \n<size=70%>{datosItem.rareza.NombreFormateado()}</size>";
             UIManager.Instance.MostrarTooltipTemporal(textoInfo, 1.5f);
         }
     }
 
     /// <summary>
-    /// Oculta el tooltip de información al retirar el ratón de la casilla.
+    /// Destruye el texto flotante cuando el ratón se aleja de la caja.
     /// </summary>
     public void OnPointerExit(PointerEventData eventData)
     {
         if (UIManager.Instance != null)
+        {
             UIManager.Instance.OcultarTooltip();
+        }
     }
 }

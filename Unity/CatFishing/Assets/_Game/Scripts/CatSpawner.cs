@@ -1,6 +1,9 @@
 using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>
+/// Gestiona la cantidad y el lugar donde nacen los gatos.
+/// </summary>
 public class CatSpawner : MonoBehaviour
 {
     [System.Serializable]
@@ -22,14 +25,8 @@ public class CatSpawner : MonoBehaviour
             GatosQuietos,
         }
 
-        [Tooltip(
-            "Elige si este punto es para un gato concreto o para cualquiera que esté 'Quieto'."
-        )]
         public TipoRegla regla;
-
-        [Tooltip("Solo hace falta rellenarlo si la regla es 'PorID' (Ej: cat_leia)")]
         public string idGato;
-
         public Transform puntoExclusivo;
     }
 
@@ -47,18 +44,26 @@ public class CatSpawner : MonoBehaviour
 
     [Header("Ritmo y Límites")]
     public float segundosEntreSpawns = 60f;
+
     private List<GameObject> gatosActivos = new List<GameObject>();
     private float temporizador;
 
+    /// <summary>
+    /// Carga el tiempo y lanza el primer gato.
+    /// </summary>
     void Start()
     {
         temporizador = segundosEntreSpawns;
         IntentarSpawnearGato();
     }
 
+    /// <summary>
+    /// Revisa cuánto tiempo falta para traer a otro gato nuevo a la isla.
+    /// </summary>
     void Update()
     {
         temporizador -= Time.deltaTime;
+
         if (temporizador <= 0)
         {
             IntentarSpawnearGato();
@@ -66,30 +71,70 @@ public class CatSpawner : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Verifica si hay sitio para más gatos y los crea según el nivel del jugador.
+    /// </summary>
     private void IntentarSpawnearGato()
     {
+        int nivelJugador;
+        int maxGatosPermitidos;
+        GameObject gatoElegido;
+        Transform puntoElegido;
+
         gatosActivos.RemoveAll(gato => gato == null);
 
-        int nivelJugador = PlayerPrefs.GetInt("CurrentLevel", 1);
-        int maxGatosPermitidos = Mathf.Clamp(1 + (nivelJugador / 10), 1, 6);
+        nivelJugador = PlayerPrefs.GetInt("CurrentLevel", 1);
+        maxGatosPermitidos = Mathf.Clamp(1 + (nivelJugador / 10), 1, 6);
 
-        if (gatosActivos.Count >= maxGatosPermitidos)
+        if (gatosActivos.Count >= maxGatosPermitidos || puntosDeSpawnGenerales.Length == 0)
+        {
+            Debug.LogWarning("Límite de gatos alcanzado o no hay puntos de creación válidos.");
             return;
-        if (puntosDeSpawnGenerales.Length == 0)
-            return;
+        }
 
-        GameObject gatoElegido = ObtenerGatoPorRareza();
+        gatoElegido = ObtenerGatoPorRareza();
+
         if (gatoElegido == null)
+        {
+            Debug.LogWarning("No se pudo elegir ningún gato para aparecer.");
             return;
+        }
 
-        Transform puntoElegido = null;
-        GatoNPC scriptGato = gatoElegido.GetComponent<GatoNPC>();
-        CatBehavior scriptBehavior = gatoElegido.GetComponent<CatBehavior>();
+        puntoElegido = BuscarPuntoEspecial(gatoElegido);
+
+        if (puntoElegido == null)
+        {
+            puntoElegido = ObtenerPuntoGeneralLibre();
+        }
+
+        if (puntoElegido != null)
+        {
+            InstanciarGato(gatoElegido, puntoElegido);
+        }
+        else
+        {
+            Debug.LogWarning("No hay ningún punto libre para colocar al gato.");
+        }
+    }
+
+    /// <summary>
+    /// Comprueba si el gato elegido debe ir obligatoriamente a una zona especial de la isla.
+    /// </summary>
+    private Transform BuscarPuntoEspecial(GameObject gatoElegido)
+    {
+        GatoNPC scriptGato;
+        CatBehavior scriptBehavior;
+        List<SpawnEspecifico> spawnsDisponibles;
+        bool esMatchPorID;
+        bool esMatchQuieto;
+
+        scriptGato = gatoElegido.GetComponent<GatoNPC>();
+        scriptBehavior = gatoElegido.GetComponent<CatBehavior>();
 
         if (scriptGato != null && scriptBehavior != null)
         {
-            // Mezclamos la lista de spawns especiales para que sea aleatorio si hay varios "Quietos" libres
-            List<SpawnEspecifico> spawnsDisponibles = new List<SpawnEspecifico>(spawnsExclusivos);
+            spawnsDisponibles = new List<SpawnEspecifico>(spawnsExclusivos);
+
             for (int i = 0; i < spawnsDisponibles.Count; i++)
             {
                 SpawnEspecifico temp = spawnsDisponibles[i];
@@ -98,53 +143,36 @@ public class CatSpawner : MonoBehaviour
                 spawnsDisponibles[randomIndex] = temp;
             }
 
-            foreach (var spawnEsp in spawnsDisponibles)
+            foreach (SpawnEspecifico spawnEsp in spawnsDisponibles)
             {
-                bool esMatch = false;
-
-                // Opción A: Match exacto por ID
-                if (
+                esMatchPorID =
                     spawnEsp.regla == SpawnEspecifico.TipoRegla.PorID
-                    && spawnEsp.idGato == scriptGato.idGatoDB
-                )
-                {
-                    esMatch = true;
-                }
-                // Opción B: Cualquier gato con el bool "Quieto"
-                else if (
-                    spawnEsp.regla == SpawnEspecifico.TipoRegla.GatosQuietos
-                    && scriptBehavior.comportamientoBase == CatBehavior.Comportamiento.Quieto
-                )
-                {
-                    esMatch = true;
-                }
+                    && spawnEsp.idGato == scriptGato.idGatoDB;
 
-                // Verificamos que no haya ya un gato subido en ese punto
-                if (esMatch && !PuntoOcupado(spawnEsp.puntoExclusivo))
+                esMatchQuieto =
+                    spawnEsp.regla == SpawnEspecifico.TipoRegla.GatosQuietos
+                    && scriptBehavior.comportamientoBase == CatBehavior.Comportamiento.Quieto;
+
+                if ((esMatchPorID || esMatchQuieto) && !PuntoOcupado(spawnEsp.puntoExclusivo))
                 {
-                    puntoElegido = spawnEsp.puntoExclusivo;
-                    break;
+                    return spawnEsp.puntoExclusivo;
                 }
             }
         }
+        return null;
+    }
 
-        // Si no se encontró un punto especial libre (o no le correspondía), busca uno general libre
-        if (puntoElegido == null)
-        {
-            puntoElegido = ObtenerPuntoGeneralLibre();
-        }
+    /// <summary>
+    /// Coloca físicamente el modelo del gato en la escena y le marca la ruta.
+    /// </summary>
+    private void InstanciarGato(GameObject prefabGato, Transform puntoElegido)
+    {
+        GameObject nuevoGato;
+        CatBehavior behavior;
 
-        if (puntoElegido == null)
-            return; // Si todo está lleno, no spawnea
+        nuevoGato = Instantiate(prefabGato, puntoElegido.position, puntoElegido.rotation);
+        behavior = nuevoGato.GetComponent<CatBehavior>();
 
-        // --- INSTANCIAR ---
-        GameObject nuevoGato = Instantiate(
-            gatoElegido,
-            puntoElegido.position,
-            puntoElegido.rotation
-        );
-
-        CatBehavior behavior = nuevoGato.GetComponent<CatBehavior>();
         if (behavior != null && (behavior.waypoints == null || behavior.waypoints.Length == 0))
         {
             behavior.waypoints = waypointsGenerales;
@@ -153,48 +181,120 @@ public class CatSpawner : MonoBehaviour
         gatosActivos.Add(nuevoGato);
     }
 
+    /// <summary>
+    /// Compara posiciones para que no nazcan gatos uno encima del otro.
+    /// </summary>
     private bool PuntoOcupado(Transform punto)
     {
-        foreach (var gato in gatosActivos)
+        foreach (GameObject gato in gatosActivos)
         {
-            // Si hay un gato a menos de 1 metro de ese punto de spawn, se considera ocupado
             if (gato != null && Vector3.Distance(gato.transform.position, punto.position) < 1f)
+            {
                 return true;
+            }
         }
         return false;
     }
 
+    /// <summary>
+    /// Busca un lugar aleatorio y normal que no esté ocupado por otros gatos.
+    /// </summary>
     private Transform ObtenerPuntoGeneralLibre()
     {
-        for (int i = 0; i < 15; i++) // Intenta buscar un punto libre 15 veces
+        Transform punto;
+
+        for (int i = 0; i < 15; i++)
         {
-            Transform punto = puntosDeSpawnGenerales[
-                Random.Range(0, puntosDeSpawnGenerales.Length)
-            ];
+            punto = puntosDeSpawnGenerales[Random.Range(0, puntosDeSpawnGenerales.Length)];
+
             if (!PuntoOcupado(punto))
+            {
                 return punto;
+            }
         }
         return null;
     }
 
+    /// <summary>
+    /// Sortea qué tipo de rareza de gato va a nacer usando probabilidades.
+    /// </summary>
     private GameObject ObtenerGatoPorRareza()
     {
-        float pesoTotal = 0;
-        foreach (var grupo in gruposDeRareza)
+        float pesoTotalRareza = 0;
+        float tiradaRareza;
+        float pesoAcumuladoRareza = 0;
+
+        foreach (RarityGroup grupo in gruposDeRareza)
+        {
             if (grupo.prefabsGatos.Length > 0)
-                pesoTotal += grupo.probabilidad;
+            {
+                pesoTotalRareza += grupo.probabilidad;
+            }
+        }
 
-        float tirada = Random.Range(0, pesoTotal);
-        float pesoAcumulado = 0;
+        tiradaRareza = Random.Range(0, pesoTotalRareza);
 
-        foreach (var grupo in gruposDeRareza)
+        foreach (RarityGroup grupo in gruposDeRareza)
         {
             if (grupo.prefabsGatos.Length == 0)
+            {
                 continue;
-            pesoAcumulado += grupo.probabilidad;
-            if (tirada <= pesoAcumulado)
-                return grupo.prefabsGatos[Random.Range(0, grupo.prefabsGatos.Length)];
+            }
+
+            pesoAcumuladoRareza += grupo.probabilidad;
+
+            if (tiradaRareza <= pesoAcumuladoRareza)
+            {
+                return ElegirGatoPorBajaAfinidad(grupo.prefabsGatos);
+            }
         }
         return null;
+    }
+
+    /// <summary>
+    /// Da más posibilidad de nacer a los gatos que el jugador no tiene descubiertos.
+    /// </summary>
+    private GameObject ElegirGatoPorBajaAfinidad(GameObject[] prefabsDisponibles)
+    {
+        float pesoTotalGatos = 0f;
+        List<float> pesosInversos = new List<float>();
+        GatoNPC scriptNPC;
+        int afinidadActual;
+        float pesoAsignado;
+        float tiradaGato;
+        float acumuladoGato = 0f;
+
+        foreach (GameObject prefab in prefabsDisponibles)
+        {
+            scriptNPC = prefab.GetComponent<GatoNPC>();
+            afinidadActual = 0;
+
+            if (
+                scriptNPC != null
+                && GameManager.Instance != null
+                && GameManager.Instance.afinidadGatos.ContainsKey(scriptNPC.idGatoDB)
+            )
+            {
+                afinidadActual = GameManager.Instance.afinidadGatos[scriptNPC.idGatoDB];
+            }
+
+            pesoAsignado = 1000f / (afinidadActual + 100f);
+            pesosInversos.Add(pesoAsignado);
+            pesoTotalGatos += pesoAsignado;
+        }
+
+        tiradaGato = Random.Range(0f, pesoTotalGatos);
+
+        for (int i = 0; i < prefabsDisponibles.Length; i++)
+        {
+            acumuladoGato += pesosInversos[i];
+
+            if (tiradaGato <= acumuladoGato)
+            {
+                return prefabsDisponibles[i];
+            }
+        }
+
+        return prefabsDisponibles[0];
     }
 }

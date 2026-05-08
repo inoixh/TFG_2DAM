@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 
 /// <summary>
-/// Controla el movimiento físico del jugador, aplicando suavizado y gestionando el sonido de los pasos.
+/// Mueve al personaje por la isla y hace sonar sus pasos al caminar o correr.
 /// </summary>
 [RequireComponent(typeof(CharacterController))]
 public class PlayerMovement : MonoBehaviour
@@ -27,26 +27,35 @@ public class PlayerMovement : MonoBehaviour
     private Vector2 movimientoActual;
     private Vector2 velocidadMovimientoSuavizado;
 
+    /// <summary>
+    /// Encuentra las extremidades físicas del jugador al empezar.
+    /// </summary>
     void Start()
     {
         controller = GetComponent<CharacterController>();
     }
 
+    /// <summary>
+    /// Gestiona los pasos y la posición siempre y cuando los menús de la tienda no estén abiertos.
+    /// </summary>
     void Update()
     {
-        if (movimientoBloqueado)
-            return;
-
-        ProcesarMovimiento();
-        ProcesarAudioPasos();
+        if (!movimientoBloqueado)
+        {
+            ProcesarMovimiento();
+            ProcesarAudioPasos();
+        }
     }
 
     /// <summary>
-    /// Calcula el vector de dirección basado en el teclado y mueve al CharacterController.
+    /// Lee las teclas direccionales (WASD) y empuja al jugador aplicando gravedad y suavizado.
     /// </summary>
     private void ProcesarMovimiento()
     {
         Vector2 movimientoObjetivo = Vector2.zero;
+        bool estaCorriendo;
+        float velocidadActual;
+        Vector3 mover;
 
         if (Keyboard.current != null)
         {
@@ -72,33 +81,50 @@ public class PlayerMovement : MonoBehaviour
             tiempoAceleracion
         );
 
-        bool estaCorriendo =
-            Keyboard.current.leftShiftKey.isPressed && movimientoActual.magnitude > 0.1f;
-        float velocidadActual = estaCorriendo ? velocidadCorrer : velocidadCaminar;
+        estaCorriendo =
+            Keyboard.current != null
+            && Keyboard.current.leftShiftKey.isPressed
+            && movimientoActual.magnitude > 0.1f;
+        velocidadActual = estaCorriendo ? velocidadCorrer : velocidadCaminar;
 
-        Vector3 mover =
-            transform.right * movimientoActual.x + transform.forward * movimientoActual.y;
+        mover = transform.right * movimientoActual.x + transform.forward * movimientoActual.y;
         mover.y = -9.8f;
 
-        controller.Move(mover * velocidadActual * Time.deltaTime);
+        if (controller != null)
+        {
+            controller.Move(mover * velocidadActual * Time.deltaTime);
+        }
+        else
+        {
+            Debug.LogWarning("Falta el CharacterController para mover al jugador.");
+        }
     }
 
     /// <summary>
-    /// Gestiona los intervalos de tiempo para reproducir efectos de sonido al caminar o correr.
+    /// Cuenta el tiempo que tardas en dar una zancada y le pide al juego que suene la bota contra el suelo.
     /// </summary>
     private void ProcesarAudioPasos()
     {
-        bool estaCorriendo = Keyboard.current.leftShiftKey.isPressed;
+        bool estaCorriendo;
+        float tiempoEntrePasos;
 
-        if (controller.velocity.magnitude > 0.1f && movimientoActual.magnitude > 0.1f)
+        estaCorriendo = Keyboard.current != null && Keyboard.current.leftShiftKey.isPressed;
+
+        if (
+            controller != null
+            && controller.velocity.magnitude > 0.1f
+            && movimientoActual.magnitude > 0.1f
+        )
         {
-            float tiempoEntrePasos = estaCorriendo ? frecuenciaPasosCorrer : frecuenciaPasosCaminar;
+            tiempoEntrePasos = estaCorriendo ? frecuenciaPasosCorrer : frecuenciaPasosCaminar;
             cronometroPasos += Time.deltaTime;
 
             if (cronometroPasos >= tiempoEntrePasos)
             {
                 if (SoundManager.Instance != null)
+                {
                     SoundManager.Instance.ReproducirPaso();
+                }
                 cronometroPasos = 0f;
             }
         }

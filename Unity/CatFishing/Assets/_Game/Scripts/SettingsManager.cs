@@ -8,8 +8,7 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Gestiona la configuración del usuario, su persistencia en Firestore y la aplicación
-/// de los ajustes a los sistemas de audio, control y gráficos del juego.
+/// Aplica los cambios de volumen, gráficos y controles del ratón al juego.
 /// </summary>
 public class SettingsManager : MonoBehaviour
 {
@@ -28,146 +27,249 @@ public class SettingsManager : MonoBehaviour
 
     [Header("Paneles")]
     public GameObject settingsPanel;
-    public GameObject mainMenuPanel;
 
     private FirebaseFirestore db;
     private FirebaseAuth auth;
 
-    private void Start()
+    /// <summary>
+    /// Conecta los controladores físicos y pide a la nube tus preferencias guardadas.
+    /// </summary>
+    void Start()
     {
         db = FirebaseFirestore.DefaultInstance;
         auth = FirebaseAuth.DefaultInstance;
+
+        ConfigurarEventosEnTiempoReal();
 
         if (auth.CurrentUser != null)
         {
             LoadSettingsFromDatabase();
         }
+        else
+        {
+            Debug.LogWarning("No se encontraron ajustes porque no hay usuario registrado.");
+        }
     }
 
     /// <summary>
-    /// Abre el panel de opciones ocultando el menú principal o de pausa si existen.
+    /// Escucha a la tecla Escape para apagar directamente este cuadro si lo tienes abierto.
+    /// </summary>
+    void Update()
+    {
+        if (
+            settingsPanel != null
+            && settingsPanel.activeSelf
+            && UnityEngine.InputSystem.Keyboard.current != null
+            && UnityEngine.InputSystem.Keyboard.current.escapeKey.wasPressedThisFrame
+        )
+        {
+            CloseSettingsPanel();
+        }
+    }
+
+    /// <summary>
+    /// Permite que al mover las barras de sonido con el ratón se escuche el cambio al instante.
+    /// </summary>
+    private void ConfigurarEventosEnTiempoReal()
+    {
+        if (masterSlider != null)
+            masterSlider.onValueChanged.AddListener(
+                delegate
+                {
+                    ApplySettingsToGame();
+                }
+            );
+        if (musicSlider != null)
+            musicSlider.onValueChanged.AddListener(
+                delegate
+                {
+                    ApplySettingsToGame();
+                }
+            );
+        if (sfxSlider != null)
+            sfxSlider.onValueChanged.AddListener(
+                delegate
+                {
+                    ApplySettingsToGame();
+                }
+            );
+        if (mouseSensSlider != null)
+            mouseSensSlider.onValueChanged.AddListener(
+                delegate
+                {
+                    ApplySettingsToGame();
+                }
+            );
+        if (invertYToggle != null)
+            invertYToggle.onValueChanged.AddListener(
+                delegate
+                {
+                    ApplySettingsToGame();
+                }
+            );
+        if (fullscreenToggle != null)
+            fullscreenToggle.onValueChanged.AddListener(
+                delegate
+                {
+                    ApplySettingsToGame();
+                }
+            );
+        if (graphicsDropdown != null)
+            graphicsDropdown.onValueChanged.AddListener(
+                delegate
+                {
+                    ApplySettingsToGame();
+                }
+            );
+    }
+
+    /// <summary>
+    /// Abre visualmente la ventana de engranajes y recarga su información.
     /// </summary>
     public void OpenSettingsPanel()
     {
-        if (mainMenuPanel != null)
-            mainMenuPanel.SetActive(false);
-        if (UIManager.Instance != null && UIManager.Instance.panelPausa != null)
-            if (settingsPanel != null)
-                settingsPanel.SetActive(true);
-
+        if (settingsPanel != null)
+        {
+            settingsPanel.SetActive(true);
+        }
         LoadSettingsFromDatabase();
     }
 
     /// <summary>
-    /// Guarda los ajustes, cierra el panel y vuelve al menú donde te encontrabas.
+    /// Subida final a la nube del resultado y ocultación gráfica del recuadro.
     /// </summary>
     public void CloseSettingsPanel()
     {
         SaveSettingsToDatabase();
 
         if (settingsPanel != null)
+        {
             settingsPanel.SetActive(false);
-
-        if (mainMenuPanel != null)
-            mainMenuPanel.SetActive(true);
-        else if (UIManager.Instance != null && UIManager.Instance.panelPausa != null)
-            UIManager.Instance.panelPausa.SetActive(true);
+        }
     }
 
     /// <summary>
-    /// Descarga la configuración de Firestore y la aplica a los sistemas del juego.
+    /// Obtiene de Firebase qué volumen tenías ayer y lo empuja hacia los reguladores de pantalla.
     /// </summary>
     public void LoadSettingsFromDatabase()
     {
-        if (auth.CurrentUser == null)
-            return;
+        string uid;
 
-        string uid = auth.CurrentUser.UserId;
-        db.Collection("users")
-            .Document(uid)
-            .GetSnapshotAsync()
-            .ContinueWithOnMainThread(task =>
-            {
-                if (task.IsCompleted && task.Result.Exists)
+        if (auth.CurrentUser != null)
+        {
+            uid = auth.CurrentUser.UserId;
+            db.Collection("users")
+                .Document(uid)
+                .GetSnapshotAsync()
+                .ContinueWithOnMainThread(task =>
                 {
-                    Dictionary<string, object> settings = task.Result.GetValue<
-                        Dictionary<string, object>
-                    >("settings");
+                    Dictionary<string, object> settings;
 
-                    if (settings != null)
+                    if (task.IsCompleted && task.Result.Exists)
                     {
-                        UpdateUIValues(settings);
-                        ApplySettingsToGame();
+                        settings = task.Result.GetValue<Dictionary<string, object>>("settings");
+                        if (settings != null)
+                        {
+                            UpdateUIValues(settings);
+                            ApplySettingsToGame();
+                        }
                     }
-                }
-            });
+                });
+        }
+        else
+        {
+            Debug.LogWarning("No se puede consultar la nube si no hay usuario.");
+        }
     }
 
     /// <summary>
-    /// Actualiza los elementos visuales con los datos descargados.
+    /// Mueve la bolita de los sliders a su sitio físico según el número que dictó la nube.
     /// </summary>
     private void UpdateUIValues(Dictionary<string, object> settings)
     {
-        if (settings.ContainsKey("master_volume"))
+        if (settings.ContainsKey("master_volume") && masterSlider != null)
             masterSlider.value = Convert.ToSingle(settings["master_volume"]);
-        if (settings.ContainsKey("music_volume"))
+        if (settings.ContainsKey("music_volume") && musicSlider != null)
             musicSlider.value = Convert.ToSingle(settings["music_volume"]);
-        if (settings.ContainsKey("sfx_volume"))
+        if (settings.ContainsKey("sfx_volume") && sfxSlider != null)
             sfxSlider.value = Convert.ToSingle(settings["sfx_volume"]);
-        if (settings.ContainsKey("mouse_sens"))
+        if (settings.ContainsKey("mouse_sens") && mouseSensSlider != null)
             mouseSensSlider.value = Convert.ToSingle(settings["mouse_sens"]);
-        if (settings.ContainsKey("invert_y"))
+        if (settings.ContainsKey("invert_y") && invertYToggle != null)
             invertYToggle.isOn = Convert.ToBoolean(settings["invert_y"]);
-        if (settings.ContainsKey("fullscreen"))
+        if (settings.ContainsKey("fullscreen") && fullscreenToggle != null)
             fullscreenToggle.isOn = Convert.ToBoolean(settings["fullscreen"]);
-        if (settings.ContainsKey("graphics_quality"))
+        if (settings.ContainsKey("graphics_quality") && graphicsDropdown != null)
             graphicsDropdown.value = Convert.ToInt32(settings["graphics_quality"]);
     }
 
     /// <summary>
-    /// Conecta los valores de la configuración con los motores de Unity y otros Managers.
+    /// Traslada de verdad las matemáticas hacia los altavoces de Unity y la rotación del personaje.
     /// </summary>
     public void ApplySettingsToGame()
     {
+        CamaraMovement cam;
+
+        if (masterSlider != null)
+        {
+            AudioListener.volume = masterSlider.value;
+        }
+
         if (SoundManager.Instance != null)
         {
-            SoundManager.Instance.volumenMusica = musicSlider.value * 0.01f;
-            SoundManager.Instance.volumenEfectos = sfxSlider.value * 0.01f;
+            if (musicSlider != null)
+                SoundManager.Instance.volumenMusica = musicSlider.value;
+            if (sfxSlider != null)
+                SoundManager.Instance.volumenEfectos = sfxSlider.value;
         }
 
-        CamaraMovement cam =
-            Camera.main != null ? Camera.main.GetComponent<CamaraMovement>() : null;
+        cam = FindFirstObjectByType<CamaraMovement>();
         if (cam != null)
         {
-            cam.velocidad = mouseSensSlider.value * 10f;
+            if (mouseSensSlider != null)
+                cam.velocidad = mouseSensSlider.value;
+            if (invertYToggle != null)
+                cam.invertirY = invertYToggle.isOn;
         }
 
-        QualitySettings.SetQualityLevel(graphicsDropdown.value);
-        Screen.fullScreen = fullscreenToggle.isOn;
+        if (graphicsDropdown != null)
+        {
+            QualitySettings.SetQualityLevel(graphicsDropdown.value);
+        }
+
+        if (fullscreenToggle != null)
+        {
+            Screen.fullScreen = fullscreenToggle.isOn;
+        }
     }
 
     /// <summary>
-    /// Sincroniza los valores actuales de la UI con la base de datos en la nube.
+    /// Genera la carpeta definitiva con tu configuración final y la envía para guardarse.
     /// </summary>
     private void SaveSettingsToDatabase()
     {
-        if (auth.CurrentUser == null)
-            return;
+        Dictionary<string, object> updatedSettings;
 
-        Dictionary<string, object> updatedSettings = new Dictionary<string, object>
+        if (auth.CurrentUser != null)
         {
-            { "master_volume", masterSlider.value },
-            { "music_volume", musicSlider.value },
-            { "sfx_volume", sfxSlider.value },
-            { "mouse_sens", mouseSensSlider.value },
-            { "invert_y", invertYToggle.isOn },
-            { "fullscreen", fullscreenToggle.isOn },
-            { "graphics_quality", graphicsDropdown.value },
-        };
+            updatedSettings = new Dictionary<string, object>
+            {
+                { "master_volume", masterSlider != null ? masterSlider.value : 1f },
+                { "music_volume", musicSlider != null ? musicSlider.value : 1f },
+                { "sfx_volume", sfxSlider != null ? sfxSlider.value : 1f },
+                { "mouse_sens", mouseSensSlider != null ? mouseSensSlider.value : 1f },
+                { "invert_y", invertYToggle != null ? invertYToggle.isOn : false },
+                { "fullscreen", fullscreenToggle != null ? fullscreenToggle.isOn : true },
+                { "graphics_quality", graphicsDropdown != null ? graphicsDropdown.value : 2 },
+            };
 
-        db.Collection("users")
-            .Document(auth.CurrentUser.UserId)
-            .UpdateAsync("settings", updatedSettings);
-        ApplySettingsToGame();
+            db.Collection("users")
+                .Document(auth.CurrentUser.UserId)
+                .UpdateAsync("settings", updatedSettings);
+        }
+        else
+        {
+            Debug.LogWarning("Se intentó guardar pero el jugador se desconectó a medias.");
+        }
     }
 }

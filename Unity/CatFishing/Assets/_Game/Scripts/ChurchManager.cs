@@ -6,8 +6,7 @@ using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 /// <summary>
-/// Gestiona la interfaz de la Iglesia, permite el rezo manual diario
-/// y aplica bendiciones pasivas (bufos) basadas en la constancia del jugador.
+/// Gestiona la iglesia y asigna mejoras estables que duran todo el día.
 /// </summary>
 public class ChurchManager : MonoBehaviour
 {
@@ -24,24 +23,43 @@ public class ChurchManager : MonoBehaviour
     public bool iglesiaAbierta { get; private set; }
     private bool bufosCargados = false;
 
+    /// <summary>
+    /// Se nombra a sí mismo mánager global y revisa que solo haya uno.
+    /// </summary>
     void Awake()
     {
         if (Instance == null)
+        {
             Instance = this;
+        }
         else
+        {
             Destroy(gameObject);
+        }
     }
 
+    /// <summary>
+    /// Conecta las funciones a los botones visuales.
+    /// </summary>
     void Start()
     {
         if (panelIglesia != null)
+        {
             panelIglesia.SetActive(false);
+        }
         if (botonCerrar != null)
+        {
             botonCerrar.onClick.AddListener(CerrarIglesia);
+        }
         if (botonRezar != null)
+        {
             botonRezar.onClick.AddListener(Rezar);
+        }
     }
 
+    /// <summary>
+    /// Revisa si el jugador pulsa la tecla para marcharse del edificio.
+    /// </summary>
     void Update()
     {
         if (iglesiaAbierta && Keyboard.current.escapeKey.wasPressedThisFrame)
@@ -50,6 +68,9 @@ public class ChurchManager : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Activa la pantalla religiosa y frena al jugador.
+    /// </summary>
     public void AbrirIglesia()
     {
         iglesiaAbierta = true;
@@ -59,6 +80,9 @@ public class ChurchManager : MonoBehaviour
         ActualizarUIRacha();
     }
 
+    /// <summary>
+    /// Oculta el edificio y permite caminar al jugador otra vez.
+    /// </summary>
     public void CerrarIglesia()
     {
         iglesiaAbierta = false;
@@ -67,7 +91,7 @@ public class ChurchManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Invoca el rezo, actualiza UI, bufos y emite el sonido celestial.
+    /// Manda la señal de rezar y hace sonar la bendición si no lo habías hecho antes.
     /// </summary>
     private void Rezar()
     {
@@ -77,21 +101,32 @@ public class ChurchManager : MonoBehaviour
             ActualizarUIRacha();
 
             if (SoundManager.Instance != null)
+            {
                 SoundManager.Instance.ReproducirRezarIglesia();
+            }
 
             bufosCargados = false;
             CargarBendicionesFirebase(GameManager.Instance.rachaIglesia);
         }
+        else
+        {
+            Debug.LogWarning("Intento de rezo duplicado o fallido.");
+        }
     }
 
     /// <summary>
-    /// Sincroniza visualmente los textos y la interactividad del botón de rezo.
+    /// Sincroniza la cantidad de días rezados que pone en pantalla.
     /// </summary>
     private void ActualizarUIRacha()
     {
-        int rachaActual = GameManager.Instance != null ? GameManager.Instance.rachaIglesia : 0;
+        int rachaActual;
+
+        rachaActual = GameManager.Instance != null ? GameManager.Instance.rachaIglesia : 0;
+
         if (textoRacha != null)
+        {
             textoRacha.text = $"Días: {rachaActual}";
+        }
 
         if (GameManager.Instance != null && botonRezar != null)
         {
@@ -102,80 +137,111 @@ public class ChurchManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Consulta Firestore buscando servicios de tipo 'streak' y activa tantos como días de racha tenga el jugador.
+    /// Busca mejoras en Firebase según tu nivel de devoción y las activa sin reloj interno.
     /// </summary>
     private async void CargarBendicionesFirebase(int racha)
     {
+        FirebaseFirestore db;
+        QuerySnapshot snapshot;
+        List<DocumentSnapshot> documentos;
+        DocumentSnapshot doc;
+        Dictionary<string, object> dict;
+        ServiceData serv;
+        GameObject slotGO;
+        ChurchSlot slotScript;
+
         if (bufosCargados)
+        {
             return;
-        FirebaseFirestore db = FirebaseFirestore.DefaultInstance;
+        }
+
+        db = FirebaseFirestore.DefaultInstance;
 
         try
         {
-            QuerySnapshot snapshot = await db.Collection("services")
+            snapshot = await db.Collection("services")
                 .WhereEqualTo("type", "streak")
                 .GetSnapshotAsync();
 
             foreach (Transform child in contenedorBendiciones)
-                Destroy(child.gameObject);
-
-            int bufosActivados = 0;
-
-            foreach (DocumentSnapshot doc in snapshot.Documents)
             {
-                if (bufosActivados >= racha)
-                    break;
+                Destroy(child.gameObject);
+            }
 
-                Dictionary<string, object> dict = doc.ToDictionary();
-                ServiceData serv = ScriptableObject.CreateInstance<ServiceData>();
+            documentos = new List<DocumentSnapshot>(snapshot.Documents);
+
+            for (int i = 0; i < documentos.Count && i < racha; i++)
+            {
+                doc = documentos[i];
+                dict = doc.ToDictionary();
+                serv = ScriptableObject.CreateInstance<ServiceData>();
 
                 serv.ID = doc.Id;
                 if (dict.ContainsKey("name"))
                     serv.nombreDisplay = dict["name"].ToString();
+
                 if (dict.ContainsKey("description"))
                     serv.descripcion = dict["description"].ToString();
+
                 if (dict.ContainsKey("effect_target"))
                     serv.objetivoEfecto = dict["effect_target"].ToString();
+
                 if (dict.ContainsKey("effect_value"))
                     serv.valorEfecto = System.Convert.ToSingle(dict["effect_value"]);
 
                 serv.icono = Resources.Load<Sprite>("ServiceIcons/" + serv.ID);
 
                 if (GameManager.Instance != null)
-                    GameManager.Instance.ActivarServicio(serv);
+                {
+                    GameManager.Instance.ActivarServicio(serv, false);
+                }
 
-                GameObject slotGO = Instantiate(prefabChurchSlot, contenedorBendiciones);
+                slotGO = Instantiate(prefabChurchSlot, contenedorBendiciones);
                 slotGO.transform.localScale = Vector3.one;
 
-                ChurchSlot slotScript = slotGO.GetComponent<ChurchSlot>();
+                slotScript = slotGO.GetComponent<ChurchSlot>();
                 if (slotScript != null)
                 {
                     slotScript.ConfigurarSlot(serv);
                 }
-
-                bufosActivados++;
             }
+
             bufosCargados = true;
         }
         catch (System.Exception e)
         {
-            Debug.LogError("Error Iglesia: " + e.Message);
+            Debug.LogWarning("Error al consultar la Iglesia: " + e.Message);
         }
     }
 
+    /// <summary>
+    /// Controla si el jugador puede usar su cámara y moverse.
+    /// </summary>
     private void BloquearControles(bool estado)
     {
-        CamaraMovement cam = FindFirstObjectByType<CamaraMovement>();
-        PlayerMovement mov = FindFirstObjectByType<PlayerMovement>();
+        CamaraMovement cam;
+        PlayerMovement mov;
+
+        cam = FindFirstObjectByType<CamaraMovement>();
+        mov = FindFirstObjectByType<PlayerMovement>();
+
         if (cam != null)
         {
             cam.rotacionBloqueada = estado;
+
             if (estado)
+            {
                 cam.DesbloquearCursor();
+            }
             else
+            {
                 cam.BloquearCursor();
+            }
         }
+
         if (mov != null)
+        {
             mov.movimientoBloqueado = estado;
+        }
     }
 }
