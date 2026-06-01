@@ -7368,7 +7368,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::TavernManager
   panelTaberna: {fileID: 1290661632}
   contenedorServicios: {fileID: 1843436169}
-  prefabServicioSlot: {fileID: 377419005899710536, guid: 494c06c53fc010a41853ded0a47ce904, type: 3}
+  prefabServicioSlot: {fileID: 1586664641381663129, guid: 4ae38646c09e8cc4192a926bb8242961, type: 3}
   imagenPreview: {fileID: 2098791537}
   textoNombre: {fileID: 2131092115}
   textoDescripcion: {fileID: 1893157013}
@@ -8233,7 +8233,6 @@ MonoBehaviour:
   fullscreenToggle: {fileID: 1226131289}
   graphicsDropdown: {fileID: 1581588549}
   settingsPanel: {fileID: 1324102153}
-  mainMenuPanel: {fileID: 0}
 --- !u!4 &620948774
 Transform:
   m_ObjectHideFlags: 0
@@ -19146,6 +19145,7 @@ MonoBehaviour:
   - {fileID: 1343857119}
   - {fileID: 953930308}
   - {fileID: 1411424737}
+  mochilaAbierta: 0
 --- !u!114 &1404198363
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -27607,7 +27607,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   velocidad: 5
   invertirY: 0
-  multiplicadorBase: 0.15
   tiempoSuavizado: 0.05
   jugador: {fileID: 1404198358}
   rotacionBloqueada: 0

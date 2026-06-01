@@ -71,7 +71,11 @@ crashlytics-build.properties
 /[Aa]ssets/[Ss]treamingAssets/aa.meta
 /[Aa]ssets/[Ss]treamingAssets/aa/*
 
-# Archivos pesados que bloquean el commit de GitHub (mayores de 100MB)
+# Build temporal de la aplicación
+/[Rr]un/
+
+# Archivos pesados que bloquean el commit de GitHub (mayores de 100MB y 50MB)
 doraemon_lucky_cat.gl*
 FirebaseCppApp-13_9_0.bundle
 FirebaseCppApp-13_9_0.so
+dark_cat_skull_throne.glb
